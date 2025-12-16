@@ -1,0 +1,16 @@
+{
+  "name": "Supabase Dev (DinD)",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest"
+    }
+  },
+
+  "forwardPorts": [54321, 54322, 54323, 54324, 54325, 54326],
+
+  "remoteUser": "vscode"
+}
