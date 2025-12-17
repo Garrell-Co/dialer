@@ -7,9 +7,19 @@ import { Suspense } from "react";
 
 async function UserDetails() {
   const supabase = await createClient();
+  console.log("[protected] Fetching user claims for protected page");
+
   const { data, error } = await supabase.auth.getClaims();
 
+  console.log("[protected] getClaims result", {
+    hasError: Boolean(error),
+    hasClaims: Boolean(data?.claims),
+  });
+
   if (error || !data?.claims) {
+    console.warn("[protected] No valid claims found, redirecting to /auth/login", {
+      error: error?.message,
+    });
     redirect("/auth/login");
   }
 

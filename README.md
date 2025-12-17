@@ -1,109 +1,74 @@
-<a href="https://demo-nextjs-with-supabase.vercel.app/">
-  <img alt="Next.js and Supabase Starter Kit - the fastest way to build apps with Next.js and Supabase" src="https://demo-nextjs-with-supabase.vercel.app/opengraph-image.png">
-  <h1 align="center">Next.js and Supabase Starter Kit</h1>
-</a>
+# Basejump
 
-<p align="center">
- The fastest way to build apps with Next.js and Supabase
-</p>
+Basejump adds personal accounts, team accounts, permissions and billing support to Supabase Auth.
 
-<p align="center">
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#demo"><strong>Demo</strong></a> ·
-  <a href="#deploy-to-vercel"><strong>Deploy to Vercel</strong></a> ·
-  <a href="#clone-and-run-locally"><strong>Clone and run locally</strong></a> ·
-  <a href="#feedback-and-issues"><strong>Feedback and issues</strong></a>
-  <a href="#more-supabase-examples"><strong>More Examples</strong></a>
-</p>
-<br/>
+[Learn more at usebasejump.com](https://usebasejump.com). Ask questions [on X / Twitter](https://twitter.com/tiniscule)
 
 ## Features
 
-- Works across the entire [Next.js](https://nextjs.org) stack
-  - App Router
-  - Pages Router
-  - Proxy
-  - Client
-  - Server
-  - It just works!
-- supabase-ssr. A package to configure Supabase Auth to use cookies
-- Password-based authentication block installed via the [Supabase UI Library](https://supabase.com/ui/docs/nextjs/password-based-auth)
-- Styling with [Tailwind CSS](https://tailwindcss.com)
-- Components with [shadcn/ui](https://ui.shadcn.com/)
-- Optional deployment with [Supabase Vercel Integration and Vercel deploy](#deploy-your-own)
-  - Environment variables automatically assigned to Vercel project
+- **Personal accounts**: Every user that signs up using Supabase auth automatically gets their own personal account.
+  Billing on personal accounts can be enabled/disabled.
+- **Team accounts**: Team accounts are billable accounts that can be shared by multiple users. Team accounts can be
+  disabled if you only wish to allow personal accounts. Billing on team accounts can also be disabled.
+- **Permissions**: Permissions are handled using RLS, just like you're used to with Supabase. Basejump provides
+  convenience methods that let you restrict access to rows based on a user's account access and role within an account
+- **Billing**: Basejump provides out of the box billing support for Stripe, but you can add your own providers easily.
+  If you do, please consider contributing them so others can benefit!
+- **Testing**: Basejump is fully tested itself, but also provides a suite of testing tools that make it easier to test
+  your own Supabase functions and schema. You can check it out
+  at [database.dev/basejump/supabase_test_helpers](https://database.dev/basejump/supabase_test_helpers). You do not need
+  to be using Basejump to use the testing tools.
 
-## Demo
+<br/><br/>
 
-You can view a fully working demo at [demo-nextjs-with-supabase.vercel.app](https://demo-nextjs-with-supabase.vercel.app/).
 
-## Deploy to Vercel
+# Quick Start
 
-Vercel deployment will guide you through creating a Supabase account and project.
+Check out the getting started guide at [usebasejump.com](https://usebasejump.com).
+<br/>
 
-After installation of the Supabase integration, all relevant environment variables will be assigned to the project so the deployment is fully functioning.
+## Optional Nextjs starter template
+We've got a fleshed out starter template ready to go for Basejump built using NextJs.  You can install it by running:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&project-name=nextjs-with-supabase&repository-name=nextjs-with-supabase&demo-title=nextjs-with-supabase&demo-description=This+starter+configures+Supabase+Auth+to+use+cookies%2C+making+the+user%27s+session+available+throughout+the+entire+Next.js+app+-+Client+Components%2C+Server+Components%2C+Route+Handlers%2C+Server+Actions+and+Middleware.&demo-url=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2F&external-id=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&demo-image=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2Fopengraph-image.png)
+```bash
+yarn create next-app -e https://github.com/usebasejump/basejump-next
+```
 
-The above will also clone the Starter kit to your GitHub, you can clone that locally and develop locally.
+Then add your Supabase URL and anon key to your `.env.local` file. There's an example in the `.env.example` file.
 
-If you wish to just develop locally and not deploy to Vercel, [follow the steps below](#clone-and-run-locally).
+> Note: create-next-app forces you to install the template into a nested directory. You can move the contents of the directory to the root of your project if you'd like.
 
-## Clone and run locally
+<br/><br/>
 
-1. You'll first need a Supabase project which can be made [via the Supabase dashboard](https://database.new)
+## Running tests
+Basejump includes comprehensive pgtap testing for all included functionality - but it's not enabled by default in case that's not your jam. To run the tests, you'll need to add a few dependencies.
 
-2. Create a Next.js app using the Supabase Starter template npx command
+#### Install pgtap
 
-   ```bash
-   npx create-next-app --example with-supabase with-supabase-app
-   ```
+```sql
+create extension pgtap with schema extensions;
+```
 
-   ```bash
-   yarn create next-app --example with-supabase with-supabase-app
-   ```
+#### Install dbdev
+Follow the directions at [database.dev](https://database.dev/supabase/dbdev) to install dbdev.
 
-   ```bash
-   pnpm create next-app --example with-supabase with-supabase-app
-   ```
+#### Install supabase_test_helpers
 
-3. Use `cd` to change into the app's directory
+```sql
+select dbdev.install('basejump-supabase_test_helpers');
+```
 
-   ```bash
-   cd with-supabase-app
-   ```
+#### Run the tests
+```bash
+supabase test db
+```
 
-4. Rename `.env.example` to `.env.local` and update the following:
+<br/><br/>
 
-  ```env
-  NEXT_PUBLIC_SUPABASE_URL=[INSERT SUPABASE PROJECT URL]
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=[INSERT SUPABASE PROJECT API PUBLISHABLE OR ANON KEY]
-  ```
-  > [!NOTE]
-  > This example uses `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, which refers to Supabase's new **publishable** key format.
-  > Both legacy **anon** keys and new **publishable** keys can be used with this variable name during the transition period. Supabase's dashboard may show `NEXT_PUBLIC_SUPABASE_ANON_KEY`; its value can be used in this example.
-  > See the [full announcement](https://github.com/orgs/supabase/discussions/29260) for more information.
+## Contributing
 
-  Both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` can be found in [your Supabase project's API settings](https://supabase.com/dashboard/project/_?showConnect=true)
+Yes please! Please submit a PR with your changes to [the basejump github repo](https://github.com/usebasejump/basejump). Please make sure your changes are well tested and documented.
 
-5. You can now run the Next.js local development server:
-
-   ```bash
-   npm run dev
-   ```
-
-   The starter kit should now be running on [localhost:3000](http://localhost:3000/).
-
-6. This template comes with the default shadcn/ui style initialized. If you instead want other ui.shadcn styles, delete `components.json` and [re-install shadcn/ui](https://ui.shadcn.com/docs/installation/next)
-
-> Check out [the docs for Local Development](https://supabase.com/docs/guides/getting-started/local-development) to also run Supabase locally.
-
-## Feedback and issues
-
-Please file feedback and issues over on the [Supabase GitHub org](https://github.com/supabase/supabase/issues/new/choose).
-
-## More Supabase examples
-
-- [Next.js Subscription Payments Starter](https://github.com/vercel/nextjs-subscription-payments)
-- [Cookie-based Auth and the Next.js 13 App Router (free course)](https://youtube.com/playlist?list=PL5S4mPUpp4OtMhpnp93EFSo42iQ40XjbF)
-- [Supabase Auth and the Next.js App Router](https://github.com/supabase/supabase/tree/master/examples/auth/nextjs)
+You can contribute in the following places:
+- [Basejump core](https://github.com/usebasejump/basejump)
+- [Basejump edge functions / billing functions](https://github.com/usebasejump/basejump-deno-packages)

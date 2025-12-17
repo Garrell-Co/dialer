@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { signInWithPassword } from "@/auth/auth-actions";
+import { signInWithEmailOtp, signInWithPassword } from "@/auth/auth-actions";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -31,6 +31,8 @@ type SignInState =
   | { success: true; redirectTo: string }
   | null;
 
+type EmailOtpState = { error?: string; success?: boolean } | null;
+
 async function signInAction(
   prevState: SignInState,
   formData: FormData,
@@ -39,11 +41,23 @@ async function signInAction(
   return result;
 }
 
+async function emailOtpAction(
+  prevState: EmailOtpState,
+  formData: FormData,
+): Promise<EmailOtpState> {
+  const result = await signInWithEmailOtp(formData);
+  return result;
+}
+
 export function LoginForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
   const [state, formAction] = useActionState(signInAction, null);
+  const [emailOtpState, emailOtpFormAction] = useActionState(
+    emailOtpAction,
+    null,
+  );
   const router = useRouter();
 
   useEffect(() => {
@@ -58,16 +72,17 @@ export function LoginForm({
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your email below to login with your password or request a
+            one-time link.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form action={formAction}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="password-email">Email</Label>
                 <Input
-                  id="email"
+                  id="password-email"
                   name="email"
                   type="email"
                   placeholder="m@example.com"
@@ -106,6 +121,43 @@ export function LoginForm({
               </Link>
             </div>
           </form>
+          <div className="mt-6 border-t pt-4">
+            <p className="mb-2 text-sm text-muted-foreground">
+              Or receive a one-time login link to your email
+            </p>
+            {emailOtpState?.success ? (
+              <p className="text-sm text-green-600">
+                Check your email for a login link. You can close this window
+                after you&apos;ve clicked the link.
+              </p>
+            ) : (
+              <form action={emailOtpFormAction} className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="otp-email">Email</Label>
+                  <Input
+                    id="otp-email"
+                    name="email"
+                    type="email"
+                    placeholder="m@example.com"
+                    required
+                  />
+                </div>
+                {emailOtpState?.error && (
+                  <p className="text-sm text-red-500">
+                    {emailOtpState.error}
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  variant="outline"
+                  disabled={emailOtpState?.success}
+                >
+                  Send magic link
+                </Button>
+              </form>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -4,6 +4,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "sb:gen": "supabase gen types typescript --local > ./lib/db/database.types.ts",
     "supabase:restart": "supabase stop && supabase start",
     "lint": "eslint ."
   },
@@ -14,6 +15,8 @@
     "@radix-ui/react-slot": "^1.2.2",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "@usebasejump/next": "^0.0.4",
+    "@usebasejump/react": "^0.0.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.511.0",

@@ -71,6 +71,36 @@ export async function signInWithPassword(formData: FormData) {
   return { success: true as const, redirectTo: "/protected" };
 }
 
+export async function signInWithEmailOtp(formData: FormData) {
+  const email = formData.get("email") as string;
+
+  console.log("[signInWithEmailOtp] Attempting magic link sign in for email:", email);
+
+  if (!email) {
+    console.log("[signInWithEmailOtp] Validation failed: email is required");
+    return { error: "Email is required" };
+  }
+
+  const supabase = await createClient();
+  const redirectUrl = `${getURL()}protected`;
+  console.log("[signInWithEmailOtp] Redirect URL after verification:", redirectUrl);
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: redirectUrl,
+    },
+  });
+
+  if (error) {
+    console.error("[signInWithEmailOtp] Error:", error.message);
+    return { error: error.message };
+  }
+
+  console.log("[signInWithEmailOtp] Success:  email sent");
+  return { success: true as const };
+}
+
 export async function resetPasswordForEmail(formData: FormData) {
   const email = formData.get("email") as string;
 

@@ -44,8 +44,14 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: If you remove getClaims() and you use server-side rendering
   // with the Supabase client, your users may be randomly logged out.
-  const { data } = await supabase.auth.getClaims();
+  const { data, error } = await supabase.auth.getClaims();
   const user = data?.claims;
+
+  console.log("[proxy] updateSession", {
+    path: request.nextUrl.pathname,
+    hasError: Boolean(error),
+    hasUser: Boolean(user),
+  });
 
   if (
     request.nextUrl.pathname !== "/" &&
