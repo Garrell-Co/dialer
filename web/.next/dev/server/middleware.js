@@ -1,0 +1,10 @@
+var R=require("./chunks/[turbopack]_runtime.js")("server/middleware.js")
+R.c("server/chunks/node_modules_next_13e9a468._.js")
+R.c("server/chunks/node_modules_@supabase_realtime-js_dist_module_05cbc85f._.js")
+R.c("server/chunks/node_modules_@supabase_storage-js_dist_module_777ce9e2._.js")
+R.c("server/chunks/node_modules_@supabase_auth-js_dist_module_3f7af1a1._.js")
+R.c("server/chunks/node_modules_tailwind-merge_dist_bundle-mjs_mjs_702c4e62._.js")
+R.c("server/chunks/node_modules_70b7f4fe._.js")
+R.c("server/chunks/[root-of-the-server]__f8e63fcd._.js")
+R.m("[project]/node_modules/next/dist/esm/build/templates/middleware.js { INNER_MIDDLEWARE_MODULE => \"[project]/web/proxy.ts [middleware] (ecmascript)\" } [middleware] (ecmascript)")
+module.exports=R.m("[project]/node_modules/next/dist/esm/build/templates/middleware.js { INNER_MIDDLEWARE_MODULE => \"[project]/web/proxy.ts [middleware] (ecmascript)\" } [middleware] (ecmascript)").exports

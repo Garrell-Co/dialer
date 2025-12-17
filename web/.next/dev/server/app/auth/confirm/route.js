@@ -1,0 +1,10 @@
+var R=require("../../../chunks/[turbopack]_runtime.js")("server/app/auth/confirm/route.js")
+R.c("server/chunks/node_modules_next_037b8c83._.js")
+R.c("server/chunks/node_modules_@supabase_realtime-js_dist_module_c091b52e._.js")
+R.c("server/chunks/node_modules_@supabase_storage-js_dist_module_829f4f3c._.js")
+R.c("server/chunks/node_modules_@supabase_auth-js_dist_module_b36180bc._.js")
+R.c("server/chunks/node_modules_7af1ed0c._.js")
+R.c("server/chunks/[root-of-the-server]__4656c293._.js")
+R.c("server/chunks/web__next-internal_server_app_auth_confirm_route_actions_f4b5c0fd.js")
+R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/web/app/auth/confirm/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)")
+module.exports=R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/web/app/auth/confirm/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)").exports

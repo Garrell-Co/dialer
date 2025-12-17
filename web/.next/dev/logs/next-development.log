@@ -1,0 +1,83 @@
+[00:00:00.691] Server  LOG      ✓ Ready in 544ms
+[00:00:01.251] Server  LOG     [proxy] updateSession {}
+[00:00:03.137] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:04.720] Server  LOG     [proxy] updateSession {}
+[00:00:07.532] Server  LOG     [proxy] updateSession {}
+[00:00:07.539] Server  LOG     [signInWithEmailOtp] Attempting magic link sign in for email: "yirmi@callpurity.com"
+[00:00:07.541] Server  LOG     [signInWithEmailOtp] Redirect URL after verification: "http://127.0.0.1:3000/protected"
+[00:00:07.596] Server  LOG     [signInWithEmailOtp] Success:  email sent
+[00:01:22.871] Server  LOG      ✓ Compiled in 29ms
+[00:02:47.199] Server  LOG     [proxy] updateSession {}
+[00:02:47.441] Server  LOG     [auth/confirm] Incoming request {}
+[00:02:47.445] Server  LOG     [auth/confirm] Verifying OTP {}
+[00:02:47.464] Server  LOG     [auth/confirm] OTP verified successfully, redirecting {}
+[00:02:47.504] Server  LOG     [proxy] updateSession {}
+[00:02:47.907] Server  LOG     [protected] Fetching user claims for protected page
+[00:02:47.973] Server  LOG     [protected] getClaims result {}
+[00:02:48.232] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:50.336] Server  LOG     [proxy] updateSession {}
+[00:02:50.568] Server  LOG     [proxy] updateSession {}
+[00:02:50.785] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:53.446] Server  LOG     [proxy] updateSession {}
+[00:02:53.462] Server  LOG     [protected] Fetching user claims for protected page
+[00:02:53.510] Server  LOG     [protected] getClaims result {}
+[00:02:53.699] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:55.704] Server  LOG     [proxy] updateSession {}
+[00:02:55.882] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:56.348] Server  LOG     [proxy] updateSession {}
+[00:02:56.364] Server  LOG     [protected] Fetching user claims for protected page
+[00:02:56.408] Server  LOG     [protected] getClaims result {}
+[00:02:56.571] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:59.322] Server  LOG     [proxy] updateSession {}
+[00:02:59.377] Server  LOG     [proxy] updateSession {}
+[00:02:59.583] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:03:00.080] Server  LOG     [proxy] updateSession {}
+[00:03:00.099] Server  LOG     [protected] Fetching user claims for protected page
+[00:03:00.141] Server  LOG     [protected] getClaims result {}
+[00:03:00.300] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:03:01.444] Server  LOG     [proxy] updateSession {}
+[00:03:12.452] Server  LOG      ✓ Compiled in 24ms
+[00:03:13.106] Server  LOG     [proxy] updateSession {}
+[00:04:12.806] Server  LOG     [proxy] updateSession {}
+[00:04:14.651] Server  LOG     [proxy] updateSession {}
+[00:04:15.836] Server  LOG     [proxy] updateSession {}
+[00:04:17.807] Server  LOG     [proxy] updateSession {}
+[00:04:19.067] Server  LOG     [proxy] updateSession {}
+[00:10:30.135] Server  LOG      ✓ Compiled in 15ms
+[00:10:35.246] Server  LOG      ✓ Compiled in 14ms
+[00:10:40.232] Server  LOG      ✓ Compiled in 23ms
+[00:11:07.951] Server  LOG     [proxy] updateSession {}
+[00:11:08.015] Server  LOG     [signInWithEmailOtp] Attempting magic link sign in for email: "yirmi@callpurity.com"
+[00:11:08.019] Server  LOG     [signInWithEmailOtp] Redirect URL after verification: "http://127.0.0.1:3000/protected"
+[00:11:08.065] Server  LOG     [signInWithEmailOtp] Success:  email sent
+[00:11:18.592] Server  LOG     [proxy] updateSession {}
+[00:11:18.598] Server  LOG     [auth/confirm] Incoming request {}
+[00:11:18.602] Server  LOG     [auth/confirm] Verifying OTP {}
+[00:11:18.618] Server  LOG     [auth/confirm] OTP verified successfully, redirecting {}
+[00:11:18.651] Server  LOG     [proxy] updateSession {}
+[00:11:18.669] Server  LOG     [protected] Fetching user claims for protected page
+[00:11:18.705] Server  LOG     [protected] getClaims result {}
+[00:11:18.947] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:11:20.936] Server  LOG     [proxy] updateSession {}
+[00:12:08.330] Server  LOG      ✓ Compiled in 15ms
+[00:12:09.666] Server  LOG      ✓ Compiled in 16ms
+[00:12:18.418] Server  LOG      ✓ Compiled in 27ms
+[00:12:34.412] Server  LOG      ✓ Compiled in 19ms
+[00:12:46.955] Server  LOG      ✓ Compiled in 20ms
+[00:13:01.202] Server  LOG      ✓ Compiled in 23ms
+[00:13:15.762] Server  LOG      ✓ Compiled in 504ms
+[00:13:17.063] Server  LOG      ✓ Compiled in 20ms
+[00:13:19.826] Server  LOG      ✓ Compiled in 19ms
+[00:13:21.610] Server  LOG      ✓ Compiled in 16ms
+[00:13:22.967] Server  LOG      ✓ Compiled in 20ms
+[00:13:27.980] Server  LOG     [proxy] updateSession {}
+[00:13:28.354] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:13:30.141] Server  LOG     [proxy] updateSession {}
+[00:13:39.575] Server  LOG      ✓ Compiled in 116ms
+[00:13:41.586] Server  LOG      ✓ Compiled in 18ms
+[00:13:43.476] Server  LOG      ✓ Compiled in 13ms
+[00:13:56.836] Server  LOG      ✓ Compiled in 24ms
+[00:13:59.459] Server  LOG     [proxy] updateSession {}
+[00:14:08.787] Server  LOG      ✓ Compiled in 15ms
+[00:14:38.935] Server  LOG     [proxy] updateSession {}
+[00:16:03.806] Server  LOG     [proxy] updateSession {}

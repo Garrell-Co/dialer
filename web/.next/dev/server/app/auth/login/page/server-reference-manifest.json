@@ -1,0 +1,35 @@
+{
+  "node": {
+    "407a313724edc8c6fb240fe552e20005a12a1cb3ee": {
+      "workers": {
+        "app/auth/login/page": {
+          "moduleId": "[project]/web/.next-internal/server/app/auth/login/page/actions.js { ACTIONS_MODULE0 => \"[project]/web/auth/auth-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "signInWithEmailOtp",
+          "filename": "web/auth/auth-actions.ts"
+        }
+      },
+      "layer": {
+        "app/auth/login/page": "action-browser"
+      },
+      "exportedName": "signInWithEmailOtp",
+      "filename": "web/auth/auth-actions.ts"
+    },
+    "406da1a8720add738f7a516daa683fd97fc0dfdbb9": {
+      "workers": {
+        "app/auth/login/page": {
+          "moduleId": "[project]/web/.next-internal/server/app/auth/login/page/actions.js { ACTIONS_MODULE0 => \"[project]/web/auth/auth-actions.ts [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "signInWithPassword",
+          "filename": "web/auth/auth-actions.ts"
+        }
+      },
+      "layer": {
+        "app/auth/login/page": "action-browser"
+      },
+      "exportedName": "signInWithPassword",
+      "filename": "web/auth/auth-actions.ts"
+    }
+  },
+  "edge": {}
+}
