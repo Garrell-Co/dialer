@@ -1,0 +1,38 @@
+#!/bin/bash
+
+BASE_URL="https://api.github.com/repos/supabase/cli"
+
+# If an argument is present, use that release tag (e.g. 2.66.5 or v2.66.5). Otherwise use 'latest'
+if [ -n "$1" ]; then
+  URL_PATH="releases/tags"
+  RELEASE=$1
+  # GitHub tags for Supabase CLI are prefixed with "v", so add it if missing
+  if [[ "$RELEASE" != v* ]]; then
+    RELEASE="v$RELEASE"
+  fi
+else
+  URL_PATH="releases"
+  RELEASE=latest
+fi
+
+echo "Requested release: $RELEASE"
+
+CLI_NAME=supabase-cli.deb
+
+DOWNLOAD_URL=$(
+  curl -s "$BASE_URL/$URL_PATH/$RELEASE" |
+    jq -r '.assets[]? | select(.name | test("\\linux_amd64.deb$")) | .browser_download_url' |
+    head -n 1
+)
+
+if [ -z "$DOWNLOAD_URL" ]; then
+  echo "Could not find a linux_amd64 .deb asset for release '$RELEASE'"
+  exit 1
+fi
+
+echo "Downloading: $DOWNLOAD_URL"
+wget -O "$CLI_NAME" "$DOWNLOAD_URL"
+
+chmod +x "$CLI_NAME"
+sudo dpkg -i "$CLI_NAME"
+rm "$CLI_NAME"
