@@ -31,14 +31,17 @@ RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-# Install pyenv
-RUN curl https://pyenv.run | bash && \
-    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
-    echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
-    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-
 # Install sudo and create non-root user
 RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/* && \
     groupadd --gid 1000 vscode && \
     useradd --uid 1000 --gid vscode --shell /bin/bash --create-home vscode && \
     echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Switch to vscode user and install pyenv
+USER vscode
+WORKDIR /home/vscode
+
+RUN curl https://pyenv.run | bash && \
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
+    echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc

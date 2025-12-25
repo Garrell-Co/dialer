@@ -3,9 +3,10 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "remoteUser": "root",
+  "remoteUser": "vscode",
+  "forwardPorts": [3000, 54321, 54322, 54323, 54324, 54325, 54326],
   "mounts": [
-    "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
   ],
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
