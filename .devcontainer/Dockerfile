@@ -1,30 +1,44 @@
-FROM mcr.microsoft.com/devcontainers/base:jammy
+FROM debian:12-slim
 
-# ---------- System packages (psql + basics) ----------
-USER root
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        ca-certificates \
-        postgresql-client && \
-    rm -rf /var/lib/apt/lists/*
+# Install basic tools and pyenv dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    procps \
+    make \
+    build-essential \
+    libssl-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libncurses5-dev \
+    libncursesw5-dev \
+    xz-utils \
+    tk-dev \
+    libffi-dev \
+    liblzma-dev \
+    locales \
+    && rm -rf /var/lib/apt/lists/*
 
-# ---------- Switch to non-root dev user ----------
-USER vscode
-SHELL ["/bin/bash", "-lc"]
+# Set up locale
+RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
+    locale-gen && \
+    update-locale LANG=en_US.UTF-8
 
-# ---------- Install nvm + Node LTS (+ npm) ----------
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash && \
-    source "$HOME/.nvm/nvm.sh" && \
-    nvm install --lts && \
-    nvm alias default "lts/*"
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
 
-# Make nvm/Node available in all interactive shells
-RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc && \
-    echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
+# Install pyenv
+RUN curl https://pyenv.run | bash && \
+    echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc && \
+    echo 'command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc && \
+    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 
-# ---------- Install bun ----------
-RUN curl -fsSL https://bun.sh/install | bash && \
-    echo 'export BUN_INSTALL="$HOME/.bun"' >> ~/.bashrc && \
-    echo 'export PATH="$BUN_INSTALL/bin:$PATH"' >> ~/.bashrc
+# Install sudo and create non-root user
+RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/* && \
+    groupadd --gid 1000 vscode && \
+    useradd --uid 1000 --gid vscode --shell /bin/bash --create-home vscode && \
+    echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers

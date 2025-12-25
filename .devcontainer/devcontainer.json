@@ -1,16 +1,29 @@
 {
-  "name": "Supabase Dev (DinD)",
+  "name": "Debian Dev Env",
   "build": {
     "dockerfile": "Dockerfile"
   },
-
+  "remoteUser": "root",
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,consistency=cached"
+  ],
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": false
+    },
+    "ghcr.io/devcontainers/features/python:1": {
       "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
     }
   },
-
-  "forwardPorts": [54321, 54322, 54323, 54324, 54325, 54326],
-
-  "remoteUser": "vscode"
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
 }

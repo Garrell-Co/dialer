@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+
+# Load the .env file
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
+fi
+
+# Check if PAT is set
+if [ -z "$PAT" ]; then
+    echo "Error: PAT environment variable is not set"
+    echo "Please set PAT in $SCRIPT_DIR/.env or export it in your environment"
+    exit 1
+fi
+
+echo "Installing FreeSWITCH with PAT (length: ${#PAT} chars)..."
+
+# First, set up the repository
+echo "Setting up FreeSWITCH repository..."
+curl -sSL https://freeswitch.org/fsget | sudo bash -s "$PAT" release install
+
+echo "FreeSWITCH installation completed"
