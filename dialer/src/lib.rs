@@ -1,5 +1,3 @@
-pub mod shared;
-pub mod ports;
-
-mod infrastructure;
-
+pub mod app;
+pub mod telephony;
+pub mod freeswitch;
