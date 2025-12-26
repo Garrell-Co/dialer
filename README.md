@@ -1,21 +1,17 @@
-# 
-- Next JS
-- Supabase back end
-- Setup with personal and team account support
-- Beginning of support for Stripe integration
-- Supabase auth flows already in place
+# Dialer
+Learning and exploring the world of telephony development
 
 ## Development Setup
 
 ### Prerequisites
-- VS Code with the Dev Containers extension
-- Docker
+- [VS Code](https://code.visualstudio.com/) with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- [Docker](https://www.docker.com/get-started) installed and running
 
 ### Installation
 
 1. **Open the dev container**
    - Open this project in VS Code
-   - When prompted, click "Reopen in Container" or use Command Palette → "Dev Containers: Reopen in Container"
+   - When prompted, click "Reopen in Container" or use Command Palette (ctrl + shift + p) → "Dev Containers: Reopen in Container"
 
 2. **Set up FreeSWITCH**
    - Copy the example environment file:
