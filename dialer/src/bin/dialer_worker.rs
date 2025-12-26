@@ -1,20 +1,31 @@
-use crate::app::hello_world::HelloWorld;
-use crate::freeswitch::adapter::FreeswitchTelephonyAdapter;
-use crate::freeswitch::esl::EslClientConfig;
+use dialer::app;
+use dialer::app::WorkerConfig;
+use tracing_subscriber::{fmt, EnvFilter};
+use dotenvy;
 
 #[tokio::main]
-async fn main() {
-    println!("Dialer worker starting...");
+async fn main() -> anyhow::Result<()> {
+    dotenvy::dotenv().ok();
 
-    let telephony_port = FreeswitchTelephonyAdapter::new(EslClientConfig {
-        host: "localhost".to_string(),
-        port: 8021,
-        password: "ClueCon".to_string(),
-    });
+    let cfg = WorkerConfig::from_env_and_args()?;
 
-    let hello_world = HelloWorld::new(Box::new(telephony_port));
+    init_tracing(&cfg)?;
 
-    hello_world.start().await.unwrap();
+    tracing::info!("Starting worker '{}' at log_level={}", cfg.worker_name, cfg.log_level);
+
+    app::run_worker(cfg).await
+}
+
+fn init_tracing(cfg: &WorkerConfig) -> anyhow::Result<()> {
+    // Parse log level from config, defaulting to INFO if invalid
+    let filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new(&cfg.log_level))
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+
+    fmt()
+        .with_env_filter(filter)
+        .with_target(false) // Hide module paths for cleaner output
+        .init();
 
     Ok(())
 }

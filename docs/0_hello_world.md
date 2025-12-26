@@ -8,6 +8,10 @@ The main application loop will look like the following
 1. Connect: simply establish a connection between application and Freeswitch
 2. Subscribe: application subscribes to Freeswitch events in PUB-SUB fashion
 3. Command: in this first slice we will be using `originate`
+4. Observe: wait for events to be emitted from Freeswitch
+5. Correlate: use the UUIDs we have assigned to understand how the event changes our FSM
+6. Control: transition the FSM based on the correlated event and which command should be sent next
+7. Recover: after disconnection or application failure, how do we setup the FSM and reconcile the FSM state based on the current state of Freeswitch
 
 When we send originate, we are saying:
 “FreeSWITCH, create a new **call leg** with these parameters, give it this identity, and start executing it now.”
@@ -99,3 +103,9 @@ We will:
 - Tell it what to do
 - Observe what happened
 - Decide what to do next
+
+
+## Freeswitch ESL command documentation
+[The Freeswitch ESL command documentation can be found here](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_event_socket_1048924#3-command-documentation)
+
+This will be referenced frequently since we are implementing our own ESL client

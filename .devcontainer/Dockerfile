@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install basic tools and pyenv dependencies
 RUN apt-get update && apt-get install -y \
     git \
-    curl \
+        curl \
     procps \
     vim \
     make \

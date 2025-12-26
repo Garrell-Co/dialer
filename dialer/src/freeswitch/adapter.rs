@@ -2,7 +2,8 @@ use anyhow::Result;
 use tokio::sync::broadcast;
 
 use crate::telephony::{TelephonyPort, OriginateRequest, HangupRequest, CallLegEvent};
-use esl::client::{EslClient, EslClientConfig};
+
+use super::esl::{EslClient, EslClientConfig};
 
 pub struct FreeswitchTelephonyAdapter {
     freeswitch_client: EslClient,
@@ -19,12 +20,15 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
     fn connect(&self) -> Result<()> {
         Ok(())
     }
+
     fn subscribe(&self) -> Result<broadcast::Receiver<CallLegEvent>> {
-        Ok(self.freeswitch_client.subscribe())
+        Ok(broadcast::channel(100).1)
     }
+
     fn originate(&self, request: OriginateRequest) -> Result<()> {
         Ok(())
     }
+
     fn hangup(&self, request: HangupRequest) -> Result<()> {
         Ok(())
     }
