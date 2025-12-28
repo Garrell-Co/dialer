@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Run FreeSWITCH in development mode
+# Uses the freeswitch user created in the Dockerfile
+
+set -e
+
+# Ensure directories exist and have correct permissions
+sudo mkdir -p /var/run/freeswitch /var/log/freeswitch
+sudo chown -R freeswitch:freeswitch /var/run/freeswitch /var/log/freeswitch 2>/dev/null || true
+
+# Use vanilla configuration from /usr/share/freeswitch/conf/vanilla/
+# -nonat: Don't require NAT traversal
+# (no -nc flag: -nc actually backgrounds the process!)
+# -nosql: Don't use SQL (useful for dev)
+# -conf, -log, -db: Must all be specified together
+FS_CONF_DIR="/usr/share/freeswitch/conf/vanilla"
+FS_LOG_DIR="/var/log/freeswitch"
+FS_DB_DIR="/var/lib/freeswitch/db"
+
+sudo mkdir -p "$FS_DB_DIR"
+sudo chown -R freeswitch:freeswitch "$FS_DB_DIR" 2>/dev/null || true
+
+exec sudo -u freeswitch freeswitch -nonat -nosql -conf "$FS_CONF_DIR" -log "$FS_LOG_DIR" -db "$FS_DB_DIR" "$@"
+

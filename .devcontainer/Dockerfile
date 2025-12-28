@@ -45,11 +45,15 @@ RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && \
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-# Install sudo and create non-root user
+# Install sudo and create users
 RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/* && \
     groupadd --gid 1000 vscode && \
     useradd --uid 1000 --gid vscode --shell /bin/zsh --create-home vscode && \
-    echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    groupadd --gid 999 freeswitch && \
+    useradd --uid 999 --gid freeswitch --shell /bin/bash --create-home --system freeswitch && \
+    mkdir -p /var/run/freeswitch /var/log/freeswitch /etc/freeswitch && \
+    chown -R freeswitch:freeswitch /var/run/freeswitch /var/log/freeswitch /etc/freeswitch
 
 # Switch to vscode user and install pyenv
 USER vscode
