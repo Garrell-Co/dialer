@@ -39,4 +39,18 @@ Learning and exploring the world of telephony development
      ```
      This script will check if FreeSWITCH is properly installed and show you the installed packages, modules, and configuration.
 
+3. **Run FreeSWITCH**
+   - Start FreeSWITCH in development mode:
+     ```bash
+     ./tools/fs-run
+     ```
+   
+   - The script will:
+     - Run FreeSWITCH as the `freeswitch` user (created in the devcontainer)
+     - Use the vanilla configuration from `/usr/share/freeswitch/conf/vanilla/`
+     - Run in the foreground so you can see logs directly in your terminal
+     - Use development-friendly flags (`-nonat`, `-nosql`)
+   
+   - To stop FreeSWITCH, press `Ctrl+C` in the terminal where it's running
+
 That's it! Your development environment is ready.
