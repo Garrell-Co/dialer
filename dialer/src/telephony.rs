@@ -33,7 +33,7 @@ pub struct CallLegEvent {
 }
 
 pub trait TelephonyPort {
-    fn connect(&self) -> Result<()>;
+    async fn connect(&self) -> Result<()>;
     fn subscribe(&self) -> Result<broadcast::Receiver<CallLegEvent>>;
     fn originate(&self, request: OriginateRequest) -> Result<()>;
     fn hangup(&self, request: HangupRequest) -> Result<()>;

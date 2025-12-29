@@ -1,12 +1,52 @@
 use anyhow::{Result, Context};
 use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::collections::HashMap;
+use std::fmt;
 use tracing;
+
+pub enum EslEventFormat {
+    Json,
+    Plain,
+    Xml
+}
+
+impl fmt::Display for EslEventFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            EslEventFormat::Json => "json",
+            EslEventFormat::Plain => "plain",
+            EslEventFormat::Xml => "xml",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+type Header = HashMap<String, String>;
+
+struct Frame {
+    header: Header,
+    body: String,
+}
+
+
+impl Frame {
+    pub fn new(header: Header, body: String) -> Self {
+        Self { header, body }
+    }
+}
+
+struct EslEvent {
+    header: Header,
+    body: String,
+}
+
 
 pub struct EslClientConfig {
     pub host: String,
     pub port: u16,
     pub password: String,
+    pub event_format: EslEventFormat,
 }
 
 pub struct EslClient {
@@ -15,15 +55,26 @@ pub struct EslClient {
 }
 
 
+#[async_trait::async_trait]
+pub trait EventSocket: Send + Sync {
+    async fn connect(&self) -> Result<()>;
+    async fn api(&self, command: &str) -> Result<String>;
+    async fn bgapi(&self, command: &str) -> Result<String>;
+    async fn is_alive(&self) -> bool;
+    async fn disconnect(&self) -> Result<()>;
+}
+
+
 impl EslClient {
     pub fn new(config: EslClientConfig) -> Self {
-        Self { 
-            config,
-            stream: None,
-        }
+        Self { config, stream: None }
     }
+}
 
-    pub async fn connect(&mut self) -> Result<()> {
+
+#[async_trait::async_trait]
+impl EventSocket for EslClient {
+    async fn connect(&self) -> Result<()> {
         tracing::debug!(
             host = %self.config.host,
             port = self.config.port,
@@ -58,7 +109,22 @@ impl EslClient {
         // TODO: Parse response to verify authentication succeeded
         
         tracing::info!("Successfully authenticated with FreeSWITCH");
-        self.stream = Some(stream);
         Ok(())
+    }
+    
+    async fn api(&self, command: &str) -> Result<String> {
+        todo!()
+    }
+    
+    async fn bgapi(&self, command: &str) -> Result<String> {
+        todo!()
+    }
+    
+    async fn is_alive(&self) -> bool {
+        todo!()
+    }
+    
+    async fn disconnect(&self) -> Result<()> {
+        todo!()
     }
 }

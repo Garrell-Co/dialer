@@ -106,6 +106,9 @@ We will:
 
 
 ## Freeswitch ESL command documentation
-[The Freeswitch ESL command documentation can be found here](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_event_socket_1048924#3-command-documentation)
+- [The Freeswitch ESL command documentation can be found here](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_event_socket_1048924#3-command-documentation)
+- [Events](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Events_32178330/#0-about)
+- [Event List](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Event-List_7143557)
+- [Event Headers](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Event-headers_32178341)
 
 This will be referenced frequently since we are implementing our own ESL client

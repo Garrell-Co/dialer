@@ -3,8 +3,6 @@
 # Run FreeSWITCH in development mode
 # Uses the freeswitch user created in the Dockerfile
 
-set -e
-
 # Ensure directories exist and have correct permissions
 sudo mkdir -p /var/run/freeswitch /var/log/freeswitch
 sudo chown -R freeswitch:freeswitch /var/run/freeswitch /var/log/freeswitch 2>/dev/null || true
@@ -21,5 +19,70 @@ FS_DB_DIR="/var/lib/freeswitch/db"
 sudo mkdir -p "$FS_DB_DIR"
 sudo chown -R freeswitch:freeswitch "$FS_DB_DIR" 2>/dev/null || true
 
-exec sudo -u freeswitch freeswitch -nonat -nosql -conf "$FS_CONF_DIR" -log "$FS_LOG_DIR" -db "$FS_DB_DIR" "$@"
+# Function to find and kill FreeSWITCH
+cleanup() {
+    echo "" >&2
+    echo "Received interrupt signal, shutting down FreeSWITCH..." >&2
+    if [ -n "$FS_PID" ]; then
+        echo "Killing FreeSWITCH (PID: $FS_PID)..." >&2
+        sudo kill -TERM "$FS_PID" 2>/dev/null || true
+        sleep 1
+        if sudo kill -0 "$FS_PID" 2>/dev/null; then
+            echo "Force killing FreeSWITCH..." >&2
+            sudo kill -KILL "$FS_PID" 2>/dev/null || true
+        fi
+    else
+        # Fallback: find and kill
+        FS_PID=$(pgrep -f "freeswitch -nonat -nosql -conf.*vanilla" | head -1)
+        if [ -n "$FS_PID" ]; then
+            sudo kill -TERM "$FS_PID" 2>/dev/null || true
+            sleep 1
+            sudo kill -KILL "$FS_PID" 2>/dev/null || true
+        fi
+    fi
+    # Kill tail process if running
+    if [ -n "$TAIL_PID" ]; then
+        kill "$TAIL_PID" 2>/dev/null || true
+    fi
+    exit 130
+}
 
+# Set up signal handlers
+trap cleanup INT TERM
+
+# Run FreeSWITCH with -nc (no console) to prevent interactive mode
+# This backgrounds it, but we'll manage it and tail the logs
+sudo -u freeswitch freeswitch -nc -nonat -nosql -conf "$FS_CONF_DIR" -log "$FS_LOG_DIR" -db "$FS_DB_DIR" "$@"
+
+# Give it a moment to start
+sleep 1
+
+# Find the FreeSWITCH PID
+FS_PID=$(pgrep -f "freeswitch -nc -nonat -nosql -conf.*vanilla" | head -1)
+
+if [ -z "$FS_PID" ]; then
+    echo "Error: Could not find FreeSWITCH process" >&2
+    exit 1
+fi
+
+echo "FreeSWITCH started (PID: $FS_PID)" >&2
+echo "Press Ctrl+C to stop" >&2
+
+# Tail the log file to see output (non-blocking, will be killed by trap)
+tail -f "$FS_LOG_DIR/freeswitch.log" 2>/dev/null &
+TAIL_PID=$!
+
+# Wait for FreeSWITCH to exit
+while sudo kill -0 "$FS_PID" 2>/dev/null; do
+    sleep 0.5
+done
+
+EXIT_CODE=$?
+
+# Kill tail if still running
+kill "$TAIL_PID" 2>/dev/null || true
+
+# Clean up trap
+trap - INT TERM
+
+exit $EXIT_CODE

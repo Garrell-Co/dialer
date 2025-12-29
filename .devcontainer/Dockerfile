@@ -35,6 +35,7 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxkbcommon-x11-0 \
     libasound2 \
+    netcat-traditional \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up locale
