@@ -111,4 +111,7 @@ We will:
 - [Event List](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Event-List_7143557)
 - [Event Headers](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Event-headers_32178341)
 
+## Freeswitch command documentation
+- [Commands](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_commands_1966741/)
+
 This will be referenced frequently since we are implementing our own ESL client

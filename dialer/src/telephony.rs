@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::collections::HashMap;
 
-use tokio::sync::broadcast;
+use tokio::sync::{mpsc};
 
 pub struct OriginateRequest {
     pub from: String,
@@ -32,9 +32,16 @@ pub struct CallLegEvent {
     pub raw: Option<HashMap<String, String>>,
 }
 
+#[derive(Debug)]
+pub enum TelephonyEvent {
+    CallOffered { call_id: String },
+    CallEnded { call_id: String },
+    TransportDown,
+}
+
+#[async_trait::async_trait]
 pub trait TelephonyPort {
-    async fn connect(&self) -> Result<()>;
-    fn subscribe(&self) -> Result<broadcast::Receiver<CallLegEvent>>;
-    fn originate(&self, request: OriginateRequest) -> Result<()>;
-    fn hangup(&self, request: HangupRequest) -> Result<()>;
+    async fn originate(&self, request: OriginateRequest) -> Result<()>;
+    async fn hangup(&self, request: HangupRequest) -> Result<()>;
+    fn take_event_rx(&mut self) -> mpsc::Receiver<TelephonyEvent>; 
 }

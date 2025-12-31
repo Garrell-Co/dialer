@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
 use tracing;
 
-use crate::telephony::{TelephonyPort, OriginateRequest, CallLegEventType};
-use crate::freeswitch::adapter::FreeswitchTelephonyAdapter;
-use crate::freeswitch::esl::{EslClient, EslClientConfig, EslEventFormat};
+use crate::telephony::{OriginateRequest, TelephonyPort};
+use crate::freeswitch::telephony::{FreeswitchTelephonyAdapter};
+use crate::freeswitch::esl::{EslClientConfig, EslEventFormat};
 
 
 #[derive(Clone, Debug)]
@@ -39,56 +37,37 @@ impl WorkerConfig {
 
 
 struct DialerWorker<T: TelephonyPort> {
-    cfg: WorkerConfig,
     telephony: T,
 }
 
-
-impl<T: TelephonyPort> DialerWorker<T> {
-    pub fn new(cfg: WorkerConfig, telephony: T) -> Self {
-        Self { cfg, telephony }
-    }
-}
-
 trait Worker {
-    async fn run(&self) -> anyhow::Result<()>;
+    async fn run(&mut self) -> anyhow::Result<()>;
 }
 
 impl<T: TelephonyPort + Send + Sync> Worker for DialerWorker<T> {
-    async fn run(&self) -> anyhow::Result<()> {
+    async fn run(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting dialer worker");
-        let mut receiver = self.telephony.subscribe()?;
-        tracing::debug!("Subscribed to telephony events");
 
-        self.telephony.connect().await?;
+        tracing::debug!("Originating call");
+        self.telephony.originate(OriginateRequest {
+            from: "+2015557782".to_string(),
+            to: "+2014007782".to_string(),
+            context: "default".to_string(),
+            extension: "1001".to_string(),
+            priority: 1,
+        }).await?;
+
+        let mut event_rx = self.telephony.take_event_rx();
 
         loop {
-            tracing::debug!("Originating call");
-            self.telephony.originate(OriginateRequest {
-                from: "+2015557782".to_string(),
-                to: "+2014007782".to_string(),
-                context: "default".to_string(),
-                extension: "1001".to_string(),
-                priority: 1,
-            })?;
-
-            let event = receiver.recv().await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "Failed to receive event");
-                    anyhow::anyhow!("Failed to receive event: {}", e)
+            let event = event_rx.recv().await
+                .ok_or_else(|| {
+                    tracing::error!("Channel closed, no more events");
+                    anyhow::anyhow!("Channel closed, no more events")
                 })?;
-            match event.kind {
-                CallLegEventType::Ringing => {
-                    tracing::info!(call_leg_id = %event.call_leg_id, "Call leg ringing");
-                }
-                CallLegEventType::Answered => {
-                    tracing::info!(call_leg_id = %event.call_leg_id, "Call leg answered");
-                }
-                CallLegEventType::Hungup { reason } => {
-                    tracing::info!(call_leg_id = %event.call_leg_id, reason = %reason, "Call leg hung up");
-                }
+            match event {
                 _ => {
-                    tracing::debug!(call_leg_id = %event.call_leg_id, "Received event");
+                    tracing::debug!("Received event");
                 }
             }
         }
@@ -103,20 +82,20 @@ async fn build_worker(cfg: WorkerConfig) -> anyhow::Result<impl Worker> {
         "Connecting to FreeSWITCH"
     );
 
-    let esl_client = EslClient::new(EslClientConfig {
-        host: cfg.freeswitch_host.clone(),
-        port: cfg.freeswitch_port.clone(),
-        password: cfg.freeswitch_password.clone(),
-        event_format: EslEventFormat::Json,
-    });
+    let client_config = EslClientConfig {
+                                            host: cfg.freeswitch_host.clone(),
+                                            port: cfg.freeswitch_port.clone(),
+                                            password: cfg.freeswitch_password.clone(),
+                                            event_format: EslEventFormat::Plain,
+                                        };
 
-    let telephony = FreeswitchTelephonyAdapter::new(Arc::new(esl_client));
+    let telephony = FreeswitchTelephonyAdapter::connect(&client_config, &client_config).await?;
 
-    Ok(DialerWorker::new(cfg, telephony))
+    Ok(DialerWorker { telephony })
 }
 
 
 pub async fn run_worker(cfg: WorkerConfig) -> anyhow::Result<()> {
-    let worker = build_worker(cfg).await?;
+    let mut worker = build_worker(cfg).await?;
     worker.run().await
 }
