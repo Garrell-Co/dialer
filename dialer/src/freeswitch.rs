@@ -1,5 +1,9 @@
-pub(crate) mod telephony;
-pub(crate) mod esl;
-
-mod connection;
+mod telephony;
+mod esl;
+mod connector;
 mod parser;
+
+// Re-export commonly used types for cleaner imports
+pub(crate) use telephony::FreeswitchTelephonyAdapter;
+pub(crate) use connector::EslClientConfig;
+pub(crate) use esl::EslEventFormat;

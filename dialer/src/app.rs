@@ -1,8 +1,7 @@
 use tracing;
 
 use crate::telephony::{OriginateRequest, TelephonyEvent, TelephonyPort};
-use crate::freeswitch::telephony::{FreeswitchTelephonyAdapter};
-use crate::freeswitch::esl::{EslClientConfig, EslEventFormat};
+use crate::freeswitch::{EslClientConfig, EslEventFormat, FreeswitchTelephonyAdapter};
 
 
 #[derive(Clone, Debug)]

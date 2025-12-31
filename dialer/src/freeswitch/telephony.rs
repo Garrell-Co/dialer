@@ -2,8 +2,9 @@ use anyhow::{Result};
 use tokio::sync::{mpsc};
 
 use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
-use super::esl::{EslClientConfig, EslCommand};
-use super::connection;
+use super::esl::{EslCommand};
+use super::connector;
+use super::connector::{EslClientConfig};
 
 
 pub struct FreeswitchTelephonyAdapter {
@@ -19,7 +20,7 @@ impl FreeswitchTelephonyAdapter {
         let (domain_tx, domain_rx) = mpsc::channel::<TelephonyEvent>(100);
 
         let connector_config = connector.clone();
-        tokio::spawn(connection::connection_manager_task(connector_config, domain_tx, cmd_rx));
+        tokio::spawn(connector::connection_manager_task(connector_config, domain_tx, cmd_rx));
 
         Ok( Self {
             domain_rx: Some(domain_rx),

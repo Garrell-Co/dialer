@@ -4,7 +4,43 @@ use anyhow::{Result, anyhow};
 
 use crate::{telephony::TelephonyEvent};
 
-use super::esl::{EslClientConfig, EslCommand, EslPort, EslEvent, EslConnector};
+use super::esl::{EslCommand, EslPort, EslEvent, EslClient, EslEventFormat};
+
+
+#[derive(Clone)]
+pub struct EslClientConfig {
+    pub host: String,
+    pub port: u16,
+    pub password: String,
+    pub event_format: EslEventFormat,
+}
+
+
+#[async_trait::async_trait]
+pub trait EslConnector: Send + Sync {
+    async fn connect(&self) -> Result<Box<dyn EslPort>>;
+}
+
+
+#[async_trait::async_trait]
+impl EslConnector for EslClientConfig {
+    async fn connect(&self) -> Result<Box<dyn EslPort>> {
+        let esl = EslClient::connect(self.host.clone(), self.port).await?;
+        Ok(Box::new(esl))
+    }
+}
+
+pub struct EslConnection {
+    pub cmd_tx: mpsc::Sender<EslCommand>,
+    pub event_rx: Option<mpsc::Receiver<EslEvent>>,
+}
+
+
+impl EslConnection {
+    pub fn take_event_rx(&mut self) -> mpsc::Receiver<EslEvent> {
+        self.event_rx.take().expect("ESL event_rx already taken")
+    }
+}
 
 
 pub async fn connection_manager_task(
@@ -22,7 +58,7 @@ pub async fn connection_manager_task(
 
         let (esl, esl_rx) = connection_result.unwrap();
 
-        let result = run_connection_until_failure(esl, esl_rx, &domain_tx, &mut cmd_rx).await;
+        let result = listen_until_failure(esl, esl_rx, &domain_tx, &mut cmd_rx).await;
         if let Err(_) = result {
             let _ = domain_tx.send(TelephonyEvent::TransportDown).await;
         }
@@ -34,12 +70,16 @@ async fn establish_connection(
     connector: &EslClientConfig
 ) -> Result<(Box<dyn EslPort>, mpsc::Receiver<EslEvent>)> {
     let mut esl = connector.connect().await?;
+
+    esl.send_raw(format!("auth {}\n\n", connector.password)).await?;
+    esl.send_raw(format!("event {} ALL", connector.event_format)).await?;
+
     let esl_rx = esl.take_event_rx();
     Ok((esl, esl_rx))
 }
 
 
-async fn run_connection_until_failure(
+async fn listen_until_failure(
     esl: Box<dyn EslPort>,
     mut esl_rx: mpsc::Receiver<EslEvent>,
     domain_tx: &mpsc::Sender<TelephonyEvent>,

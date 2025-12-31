@@ -8,7 +8,8 @@ use std::fmt;
 use std::sync::Arc;
 use tracing;
 
-use crate::freeswitch::parser::{EslParser, Frame};
+use super::parser::{EslParser, Frame};
+use super::connector::{EslConnection};
 
 pub type Headers = HashMap<String, String>;
 
@@ -37,15 +38,6 @@ impl fmt::Display for EslEventFormat {
     }
 }
 
-#[derive(Clone)]
-pub struct EslClientConfig {
-    pub host: String,
-    pub port: u16,
-    pub password: String,
-    pub event_format: EslEventFormat,
-}
-
-
 pub enum EslCommand {
     /// "api <cmd>\n\n" with oneshot reply fulfilled by reader loop
     Api {
@@ -57,34 +49,6 @@ pub enum EslCommand {
     Close,
 }
 
-
-#[async_trait::async_trait]
-pub trait EslConnector: Send + Sync {
-    async fn connect(&self) -> Result<Box<dyn EslPort>>;
-}
-
-
-#[async_trait::async_trait]
-impl EslConnector for EslClientConfig {
-    async fn connect(&self) -> Result<Box<dyn EslPort>> {
-        let esl = EslClient::connect(self.host.clone(), self.port).await?;
-        esl.send_raw(format!("auth {}\n\n", self.password)).await?;
-        esl.send_raw(format!("event {} ALL", self.event_format)).await?;
-        Ok(Box::new(esl))
-    }
-}
-
-pub struct EslConnection {
-    cmd_tx: mpsc::Sender<EslCommand>,
-    event_rx: Option<mpsc::Receiver<EslEvent>>,
-}
-
-
-impl EslConnection {
-    pub fn take_event_rx(&mut self) -> mpsc::Receiver<EslEvent> {
-        self.event_rx.take().expect("ESL event_rx already taken")
-    }
-}
 
 
 #[async_trait::async_trait]
@@ -124,7 +88,7 @@ pub struct EslClient;
 
 
 impl EslClient {
-    async fn connect(host: String, port: u16) -> Result<EslConnection> {
+    pub async fn connect(host: String, port: u16) -> Result<EslConnection> {
         tracing::debug!(
             host = host,
             port = port,
