@@ -24,7 +24,9 @@ fn init_tracing(cfg: &WorkerConfig) -> anyhow::Result<()> {
 
     fmt()
         .with_env_filter(filter)
-        .with_target(false) // Hide module paths for cleaner output
+        .with_target(true) // Show module paths (e.g., dialer::app, dialer::telephony)
+        .with_file(true) // Show file names
+        .with_line_number(true) // Show line numbers
         .init();
 
     Ok(())

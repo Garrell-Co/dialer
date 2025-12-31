@@ -1,6 +1,6 @@
 use tracing;
 
-use crate::telephony::{OriginateRequest, TelephonyPort};
+use crate::telephony::{OriginateRequest, TelephonyEvent, TelephonyPort};
 use crate::freeswitch::telephony::{FreeswitchTelephonyAdapter};
 use crate::freeswitch::esl::{EslClientConfig, EslEventFormat};
 
@@ -36,28 +36,33 @@ impl WorkerConfig {
 }
 
 
-struct DialerWorker<T: TelephonyPort> {
-    telephony: T,
+struct DialerWorker {
+    cfg: WorkerConfig
 }
 
 trait Worker {
     async fn run(&mut self) -> anyhow::Result<()>;
 }
 
-impl<T: TelephonyPort + Send + Sync> Worker for DialerWorker<T> {
+impl Worker for DialerWorker {
     async fn run(&mut self) -> anyhow::Result<()> {
         tracing::info!("Starting dialer worker");
 
-        tracing::debug!("Originating call");
-        self.telephony.originate(OriginateRequest {
-            from: "+2015557782".to_string(),
-            to: "+2014007782".to_string(),
-            context: "default".to_string(),
-            extension: "1001".to_string(),
-            priority: 1,
-        }).await?;
+        tracing::debug!(
+            host = %self.cfg.freeswitch_host,
+            port = self.cfg.freeswitch_port,
+            "Connecting to FreeSWITCH"
+        );
 
-        let mut event_rx = self.telephony.take_event_rx();
+        let client_config = EslClientConfig {
+                                                host: self.cfg.freeswitch_host.clone(),
+                                                port: self.cfg.freeswitch_port.clone(),
+                                                password: self.cfg.freeswitch_password.clone(),
+                                                event_format: EslEventFormat::Plain,
+                                        };
+
+        let mut telephony = FreeswitchTelephonyAdapter::connect(client_config).await?;
+        let mut event_rx = telephony.take_event_rx();
 
         loop {
             let event = event_rx.recv().await
@@ -66,6 +71,22 @@ impl<T: TelephonyPort + Send + Sync> Worker for DialerWorker<T> {
                     anyhow::anyhow!("Channel closed, no more events")
                 })?;
             match event {
+                TelephonyEvent::TransportUp => {
+                    tracing::info!("Telephony connection established");
+
+                    tracing::debug!("Originating call");
+
+                    telephony.originate(OriginateRequest {
+                        from: "+2015557782".to_string(),
+                        to: "+2014007782".to_string(),
+                        context: "default".to_string(),
+                        extension: "1001".to_string(),
+                        priority: 1,
+                    }).await?;
+                },
+                TelephonyEvent::TransportDown => {
+                    tracing::info!("Telephony connection lost");
+                }
                 _ => {
                     tracing::debug!("Received event");
                 }
@@ -76,22 +97,7 @@ impl<T: TelephonyPort + Send + Sync> Worker for DialerWorker<T> {
 
 
 async fn build_worker(cfg: WorkerConfig) -> anyhow::Result<impl Worker> {
-    tracing::debug!(
-        host = %cfg.freeswitch_host,
-        port = cfg.freeswitch_port,
-        "Connecting to FreeSWITCH"
-    );
-
-    let client_config = EslClientConfig {
-                                            host: cfg.freeswitch_host.clone(),
-                                            port: cfg.freeswitch_port.clone(),
-                                            password: cfg.freeswitch_password.clone(),
-                                            event_format: EslEventFormat::Plain,
-                                        };
-
-    let telephony = FreeswitchTelephonyAdapter::connect(&client_config, &client_config).await?;
-
-    Ok(DialerWorker { telephony })
+    Ok(DialerWorker { cfg })
 }
 
 

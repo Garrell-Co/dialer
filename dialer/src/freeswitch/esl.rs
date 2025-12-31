@@ -12,12 +12,14 @@ use crate::freeswitch::parser::{EslParser, Frame};
 
 pub type Headers = HashMap<String, String>;
 
+#[derive(Debug)]
 pub struct EslEvent {
     pub event_name: String,
     pub headers: Headers,
     pub body: Option<Vec<u8>>,
 }
 
+#[derive(Clone)]
 pub enum EslEventFormat {
     Json,
     Plain,
@@ -35,6 +37,7 @@ impl fmt::Display for EslEventFormat {
     }
 }
 
+#[derive(Clone)]
 pub struct EslClientConfig {
     pub host: String,
     pub port: u16,
@@ -56,7 +59,7 @@ pub enum EslCommand {
 
 
 #[async_trait::async_trait]
-pub trait EslConnector {
+pub trait EslConnector: Send + Sync {
     async fn connect(&self) -> Result<Box<dyn EslPort>>;
 }
 
@@ -64,7 +67,10 @@ pub trait EslConnector {
 #[async_trait::async_trait]
 impl EslConnector for EslClientConfig {
     async fn connect(&self) -> Result<Box<dyn EslPort>> {
-        Ok(Box::new(EslClient::connect(self.host.clone(), self.port).await?))
+        let esl = EslClient::connect(self.host.clone(), self.port).await?;
+        esl.send_raw(format!("auth {}\n\n", self.password)).await?;
+        esl.send_raw(format!("event {} ALL", self.event_format)).await?;
+        Ok(Box::new(esl))
     }
 }
 
