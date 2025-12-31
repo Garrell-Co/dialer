@@ -129,7 +129,7 @@ impl EslClient {
         let fs_conn_str = format!("{}:{}", host, port);
         let fs_stream = TcpStream::connect(fs_conn_str).await
             .context("Failed to connect to FreeSWITCH")?;
-        let (mut fs_reader, mut fs_writer) = fs_stream.into_split();
+        let (fs_reader, fs_writer) = fs_stream.into_split();
         
         // Setup reader and writer tasks
         tracing::debug!("Connected to FreeSWITCH");
