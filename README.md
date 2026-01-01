@@ -1,9 +1,17 @@
-# 
-- Next JS
+# Dialer
+- Rust dialer domain controller
+- FreeSWITCH telephony engine
+- Next JS UI
+   - Supabase auth flows already in place
 - Supabase back end
-- Setup with personal and team account support
-- Beginning of support for Stripe integration
-- Supabase auth flows already in place
+   - Setup with personal and team account support
+   - Beginning of support for Stripe integration
+   - Supabase auth flows already in place
+
+## Coffee
+Before you continue, consider 
+
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/jeremygarr5)
 
 ## Development Setup
 
