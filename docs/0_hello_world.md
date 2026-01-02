@@ -44,8 +44,7 @@ we know exactly which thing is which.
 This is why originate includes: `{origination_uuid=...}`
 
 ### 3. We are starting execution, not waiting for a result
-The we are setting up a PUB-SUB relationship between the application and Freeswitch
-
+We are setting up a PUB-SUB relationship between the application and Freeswitch
 
 > Later, “originate” will be used to:
 > - dial leads
@@ -57,7 +56,7 @@ The we are setting up a PUB-SUB relationship between the application and Freeswi
 ## What is Event Socket Layer (ESL)?
 ESL is basically the protocol glue between our application and Freeswitch
 
-ESL gives we two channels:
+ESL gives us two channels:
 1. **Command channel**
 
 Our application says things like:
