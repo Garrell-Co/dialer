@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon-x11-0 \
     libasound2 \
     netcat-traditional \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up locale
