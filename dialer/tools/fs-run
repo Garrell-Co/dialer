@@ -12,9 +12,34 @@ sudo chown -R freeswitch:freeswitch /var/run/freeswitch /var/log/freeswitch 2>/d
 # (no -nc flag: -nc actually backgrounds the process!)
 # -nosql: Don't use SQL (useful for dev)
 # -conf, -log, -db: Must all be specified together
-FS_CONF_DIR="/usr/share/freeswitch/conf/vanilla"
+VANILLA_CONF_DIR="/usr/share/freeswitch/conf/vanilla"
 FS_LOG_DIR="/var/log/freeswitch"
 FS_DB_DIR="/var/lib/freeswitch/db"
+
+# Check if test_conf exists and create merged config
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEST_CONF_DIR="$SCRIPT_DIR/../fs_config/test_conf"
+MERGED_CONF_DIR=""
+
+if [ -d "$TEST_CONF_DIR" ] && [ "$(ls -A "$TEST_CONF_DIR" 2>/dev/null)" ]; then
+    # Create temporary merged config directory
+    MERGED_CONF_DIR=$(mktemp -d -t freeswitch-conf-XXXXXX)
+    
+    echo "Merging vanilla configuration with test overrides..." >&2
+    # Copy vanilla as base
+    cp -r "$VANILLA_CONF_DIR"/* "$MERGED_CONF_DIR"/
+    
+    # Overlay test_conf (this will override vanilla files with same names)
+    cp -r "$TEST_CONF_DIR"/* "$MERGED_CONF_DIR"/
+    
+    # Set permissions for freeswitch user
+    sudo chown -R freeswitch:freeswitch "$MERGED_CONF_DIR" 2>/dev/null || true
+    
+    FS_CONF_DIR="$MERGED_CONF_DIR"
+    echo "Using merged configuration: $FS_CONF_DIR" >&2
+else
+    FS_CONF_DIR="$VANILLA_CONF_DIR"
+fi
 
 sudo mkdir -p "$FS_DB_DIR"
 sudo chown -R freeswitch:freeswitch "$FS_DB_DIR" 2>/dev/null || true
@@ -32,8 +57,8 @@ cleanup() {
             sudo kill -KILL "$FS_PID" 2>/dev/null || true
         fi
     else
-        # Fallback: find and kill
-        FS_PID=$(pgrep -f "freeswitch -nonat -nosql -conf.*vanilla" | head -1)
+        # Fallback: find and kill (search for any freeswitch process with our flags)
+        FS_PID=$(pgrep -f "freeswitch -nc -nonat -conf" | head -1)
         if [ -n "$FS_PID" ]; then
             sudo kill -TERM "$FS_PID" 2>/dev/null || true
             sleep 1
@@ -44,6 +69,11 @@ cleanup() {
     if [ -n "$TAIL_PID" ]; then
         kill "$TAIL_PID" 2>/dev/null || true
     fi
+    # Clean up merged config directory if it was created
+    if [ -n "$MERGED_CONF_DIR" ] && [ -d "$MERGED_CONF_DIR" ]; then
+        echo "Cleaning up merged configuration directory..." >&2
+        rm -rf "$MERGED_CONF_DIR"
+    fi
     exit 130
 }
 
@@ -52,13 +82,13 @@ trap cleanup INT TERM
 
 # Run FreeSWITCH with -nc (no console) to prevent interactive mode
 # This backgrounds it, but we'll manage it and tail the logs
-sudo -u freeswitch freeswitch -nc -nonat -nosql -conf "$FS_CONF_DIR" -log "$FS_LOG_DIR" -db "$FS_DB_DIR" "$@"
+sudo -u freeswitch freeswitch -nc -nonat -conf "$FS_CONF_DIR" -log "$FS_LOG_DIR" -db "$FS_DB_DIR" "$@"
 
 # Give it a moment to start
 sleep 1
 
-# Find the FreeSWITCH PID
-FS_PID=$(pgrep -f "freeswitch -nc -nonat -nosql -conf.*vanilla" | head -1)
+# Find the FreeSWITCH PID (search for any freeswitch process with our flags)
+FS_PID=$(pgrep -f "freeswitch -nc -nonat -conf" | head -1)
 
 if [ -z "$FS_PID" ]; then
     echo "Error: Could not find FreeSWITCH process" >&2
@@ -81,6 +111,12 @@ EXIT_CODE=$?
 
 # Kill tail if still running
 kill "$TAIL_PID" 2>/dev/null || true
+
+# Clean up merged config directory if it was created
+if [ -n "$MERGED_CONF_DIR" ] && [ -d "$MERGED_CONF_DIR" ]; then
+    echo "Cleaning up merged configuration directory..." >&2
+    rm -rf "$MERGED_CONF_DIR"
+fi
 
 # Clean up trap
 trap - INT TERM

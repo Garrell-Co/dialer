@@ -114,3 +114,18 @@ We will:
 - [Commands](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_commands_1966741/)
 
 This will be referenced frequently since we are implementing our own ESL client
+
+
+## Dialplan documentation
+- [Dialplan intro](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/)
+- [XML Dialplan](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/XML-Dialplan/)
+- [Loopback endpoint](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/Loopback-Endpoint_6587541/)
+
+## Implementation steps
+1. Dev container setup for repeatable and reusable dev environment
+2. Init rust project
+3. Implement ESL library for connection to FreeSWITCH ESL
+4. Implement telephony adapter
+5. Connect from domain application
+6. Establish reconnect logic (tested by connecting, then shutting down freeswitch briefly, then restarting and expecting a reconnect)
+7. Get call lifecycle in place (Test with loopback)
