@@ -1,7 +1,7 @@
 use tracing;
 
 use crate::telephony::{OriginateRequest, TelephonyEvent, TelephonyPort};
-use crate::freeswitch::{EslClientConfig, EslEventFormat, FreeswitchTelephonyAdapter};
+use crate::freeswitch::{EslEventFormat, EslSupervisorConfig, FreeswitchTelephonyAdapter};
 
 
 #[derive(Clone, Debug)]
@@ -53,14 +53,15 @@ impl Worker for DialerWorker {
             "Connecting to FreeSWITCH"
         );
 
-        let client_config = EslClientConfig {
-                                                host: self.cfg.freeswitch_host.clone(),
-                                                port: self.cfg.freeswitch_port.clone(),
-                                                password: self.cfg.freeswitch_password.clone(),
-                                                event_format: EslEventFormat::Plain,
-                                        };
+        let supervisor_config = EslSupervisorConfig {
+            host: self.cfg.freeswitch_host.clone(),
+            port: self.cfg.freeswitch_port,
+            password: self.cfg.freeswitch_password.clone(),
+            event_format: EslEventFormat::Plain,
+        };
 
-        let mut telephony = FreeswitchTelephonyAdapter::connect(client_config).await?;
+        let mut telephony = FreeswitchTelephonyAdapter::connect(supervisor_config).await?;
+
         let mut event_rx = telephony.take_event_rx();
 
         loop {

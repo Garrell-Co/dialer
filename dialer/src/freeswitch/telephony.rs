@@ -1,42 +1,82 @@
-use anyhow::{Result};
-use tokio::sync::{mpsc};
+use anyhow::Result;
+use tokio::sync::mpsc;
 
+use crate::freeswitch::{EslSupervisor, EslSupervisorConfig};
 use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
-use super::esl::{EslCommand};
-use super::connector;
-use super::connector::{EslClientConfig};
-
+use super::esl::{EslHandle, EslEvent};
+use super::connector::EslClientConfig;
 
 pub struct FreeswitchTelephonyAdapter {
     domain_rx: Option<mpsc::Receiver<TelephonyEvent>>,
-    cmd_tx: mpsc::Sender<EslCommand>
+    esl_handle: EslHandle,
 }
 
 impl FreeswitchTelephonyAdapter {
-    pub async fn connect(
-        connector: EslClientConfig,
-    ) -> Result<Self> {
-        let (cmd_tx, cmd_rx) = mpsc::channel::<EslCommand>(100);
+    /// Create a new adapter from an EslHandle and event receiver
+    /// This makes the adapter testable by allowing injection of the handle and events
+    pub fn new(esl_handle: EslHandle, mut esl_event_rx: mpsc::Receiver<EslEvent>) -> Self {
         let (domain_tx, domain_rx) = mpsc::channel::<TelephonyEvent>(100);
 
-        let connector_config = connector.clone();
-        tokio::spawn(connector::connection_manager_task(connector_config, domain_tx, cmd_rx));
+        // Spawn task to convert ESL events to TelephonyEvent
+        tokio::spawn(async move {
+            while let Some(esl_event) = esl_event_rx.recv().await {
+                match convert_esl_event(esl_event) {
+                    Ok(telephony_event) => {
+                        if domain_tx.send(telephony_event).await.is_err() {
+                            tracing::error!("Domain event channel closed");
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::debug!("Unhandled ESL event: {}", e);
+                    }
+                }
+            }
+        });
 
-        Ok( Self {
+        Self {
             domain_rx: Some(domain_rx),
-            cmd_tx
-        } )
+            esl_handle,
+        }
+    }
+
+    /// Convenience method that creates the supervisor and calls new
+    pub async fn connect(config: EslSupervisorConfig) -> Result<Self> {
+        
+        let supervisor_config = EslSupervisorConfig {
+            host: config.host,
+            port: config.port,
+            password: config.password,
+            event_format: config.event_format,
+        };
+
+        let (esl_handle, esl_event_rx) = EslSupervisor::spawn(supervisor_config);
+        Ok(Self::new(esl_handle, esl_event_rx))
     }
 }
 
+/// Convert ESL event to telephony event
+fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
+    let call_id = ev.headers.get("Unique-ID")
+        .cloned()
+        .unwrap_or_default();
+    
+    match ev.event_name.as_str() {
+        "CHANNEL_CREATE" => Ok(TelephonyEvent::CallOffered { call_id }),
+        "CHANNEL_HANGUP" => Ok(TelephonyEvent::CallEnded { call_id }),
+        _ => Err(anyhow::anyhow!("Unhandled event type: {}", ev.event_name)),
+    }
+}
 
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
-    async fn originate(&self, request: OriginateRequest) -> Result<()> {
+    async fn originate(&self, _request: OriginateRequest) -> Result<()> {
+        // TODO: Implement originate using self.esl_handle
         Ok(())
     }
 
-    async fn hangup(&self, request: HangupRequest) -> Result<()> {
+    async fn hangup(&self, _request: HangupRequest) -> Result<()> {
+        // TODO: Implement hangup using self.esl_handle
         Ok(())
     }
 
