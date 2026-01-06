@@ -1,0 +1,10 @@
+<include>
+  <context name="loopback-test">
+    <extension name="loopback-park">
+      <condition field="destination_number" expression="^test$">
+        <action application="answer"/>
+        <action application="park"/>
+      </condition>
+    </extension>
+  </context>
+</include>

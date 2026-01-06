@@ -8,15 +8,15 @@ use std::fmt;
 use std::sync::Arc;
 use tracing;
 
-use super::parser::{EslParser, Frame};
+use super::parser::EslParser;
 
 pub type Headers = HashMap<String, String>;
 
 #[derive(Debug, Clone)]
 pub struct EslEvent {
-    pub event_name: String,
-    pub headers: Headers,
-    pub body: Option<Vec<u8>>,
+    pub frame_headers: Headers,
+    pub event_headers: Headers,
+    pub event_body: Option<Vec<u8>>,
 }
 
 #[derive(Clone)]
@@ -91,14 +91,9 @@ pub struct EslSupervisorConfig {
     pub event_format: EslEventFormat,
 }
 
-/// Supervisor task that owns the TCP stream and manages the connection
-/// Handles reconnection, routes commands to TCP, routes events from TCP
 pub struct EslSupervisor;
 
 impl EslSupervisor {
-    /// Spawn a supervisor task that manages the ESL connection
-    /// Returns an EslHandle that can be used to send commands
-    /// and an event receiver for subscribing to ESL events
     pub fn spawn(
         config: EslSupervisorConfig,
     ) -> (EslHandle, mpsc::Receiver<EslEvent>) {
@@ -113,8 +108,6 @@ impl EslSupervisor {
     }
 }
 
-/// Main supervisor task loop
-/// Handles reconnection, owns TCP stream, routes messages
 async fn supervisor_task(
     config: EslSupervisorConfig,
     mut cmd_rx: mpsc::Receiver<EslCommand>,
@@ -160,17 +153,20 @@ async fn establish_connection(
     let mut writer = fs_writer;
     writer.write_all(auth_cmd.as_bytes()).await
         .context("Failed to send auth command")?;
+
+    tracing::debug!("Authenticated to FreeSWITCH");
     
     // Subscribe to events
     let event_cmd = format!("event {} ALL\n\n", config.event_format);
     writer.write_all(event_cmd.as_bytes()).await
         .context("Failed to send event subscription")?;
+
+    tracing::debug!("Subscribed to FreeSWITCH events");
     
     Ok((fs_reader, writer))
 }
 
-/// Run the connection until it fails
-/// Routes commands to TCP, routes events from TCP
+
 async fn run_connection(
     fs_reader: OwnedReadHalf,
     fs_writer: OwnedWriteHalf,
@@ -196,11 +192,11 @@ async fn run_connection(
         pending_api_writer,
     ).await;
     
-    // Abort reader when writer finishes
     reader_handle.abort();
     
     writer_result
 }
+
 
 async fn read_frames_and_forward(
     fs_reader: OwnedReadHalf,
@@ -210,7 +206,7 @@ async fn read_frames_and_forward(
     let mut parser = EslParser::new(fs_reader);
 
     loop {
-        let frame = match parser.parse_event().await {
+        let event = match parser.parse_frame().await {
             Ok(Some(e)) => e,
             Ok(None) => break,
             Err(e) => {
@@ -219,9 +215,11 @@ async fn read_frames_and_forward(
             }
         };
 
-        let event = esl_frame_to_event(&frame);
+        let content_type = event.frame_headers.get("Content-Type")
+            .cloned()
+            .unwrap_or_default();
 
-        match frame.content_type.as_str() {
+        match content_type.as_str() {
             "text/event-plain" | "text/event-json" | "text/event-xml" => {
                 if fs_event_tx.send(event).await.is_err() {
                     tracing::error!("event dropped during notification");
@@ -246,6 +244,7 @@ async fn read_frames_and_forward(
 
     Ok(())
 }
+
 
 async fn send_commands_to_fs(
     mut fs_writer: OwnedWriteHalf,
@@ -273,17 +272,4 @@ async fn send_commands_to_fs(
     Ok(())
 }
 
-fn esl_frame_to_event(msg: &Frame) -> EslEvent {
-    // For text/event-plain, event name is usually in "Event-Name"
-    let event_name = msg
-        .headers
-        .get("Event-Name")
-        .cloned()
-        .unwrap_or_else(|| "UNKNOWN".into());
 
-    EslEvent {
-        event_name,
-        headers: msg.headers.clone(),
-        body: msg.body.clone(),
-    }
-}

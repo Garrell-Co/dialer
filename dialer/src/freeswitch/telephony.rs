@@ -4,7 +4,6 @@ use tokio::sync::mpsc;
 use crate::freeswitch::{EslSupervisor, EslSupervisorConfig};
 use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
 use super::esl::{EslHandle, EslEvent};
-use super::connector::EslClientConfig;
 
 pub struct FreeswitchTelephonyAdapter {
     domain_rx: Option<mpsc::Receiver<TelephonyEvent>>,
@@ -55,23 +54,59 @@ impl FreeswitchTelephonyAdapter {
     }
 }
 
+/// Print the entire ESL event
+fn print_esl_event(ev: &EslEvent) {
+    let event_name = ev.event_headers.get("Event-Name")
+        .or_else(|| ev.frame_headers.get("Event-Name"))
+        .cloned()
+        .unwrap_or_else(|| "Unknown".to_string());
+    tracing::info!("ESL Event - Name: {}", event_name);
+    tracing::info!("ESL Event - Frame Headers: {:?}", ev.frame_headers);
+    tracing::info!("ESL Event - Event Headers: {:?}", ev.event_headers);
+    
+    match &ev.event_body {
+        Some(body_bytes) => {
+            match String::from_utf8(body_bytes.clone()) {
+                Ok(body_str) => {
+                    tracing::info!("ESL Event - Body: {}", body_str);
+                }
+                Err(_) => {
+                    tracing::info!("ESL Event - Body (binary, {} bytes): {:?}", body_bytes.len(), body_bytes);
+                }
+            }
+        }
+        None => {
+            tracing::info!("ESL Event - Body: (empty)");
+        }
+    }
+}
+
 /// Convert ESL event to telephony event
 fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
-    let call_id = ev.headers.get("Unique-ID")
+    let call_id = ev.event_headers.get("Unique-ID")
+        .or_else(|| ev.frame_headers.get("Unique-ID"))
         .cloned()
         .unwrap_or_default();
     
-    match ev.event_name.as_str() {
+    let event_name = ev.event_headers.get("Event-Name")
+        .or_else(|| ev.frame_headers.get("Event-Name"))
+        .cloned()
+        .unwrap_or_default();
+    
+    match event_name.as_str() {
         "CHANNEL_CREATE" => Ok(TelephonyEvent::CallOffered { call_id }),
         "CHANNEL_HANGUP" => Ok(TelephonyEvent::CallEnded { call_id }),
-        _ => Err(anyhow::anyhow!("Unhandled event type: {}", ev.event_name)),
+        _ => {
+            //print_esl_event(&ev);
+            Ok(TelephonyEvent::Unknown { message: format!("{:?}", ev.event_headers) } )
+        },
     }
 }
 
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
-    async fn originate(&self, _request: OriginateRequest) -> Result<()> {
-        // TODO: Implement originate using self.esl_handle
+    async fn originate(&self, req: OriginateRequest) -> Result<()> {
+        self.esl_handle.api(format!("originate loopback/{}/{}", req.extension, req.context)).await?;
         Ok(())
     }
 
@@ -84,3 +119,5 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
         self.domain_rx.take().expect("domain_rx already taken")
     }
 }
+
+

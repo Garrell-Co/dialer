@@ -57,7 +57,7 @@ impl Worker for DialerWorker {
             host: self.cfg.freeswitch_host.clone(),
             port: self.cfg.freeswitch_port,
             password: self.cfg.freeswitch_password.clone(),
-            event_format: EslEventFormat::Plain,
+            event_format: EslEventFormat::Json,
         };
 
         let mut telephony = FreeswitchTelephonyAdapter::connect(supervisor_config).await?;
@@ -86,6 +86,9 @@ impl Worker for DialerWorker {
                 },
                 TelephonyEvent::TransportDown => {
                     tracing::info!("Telephony connection lost");
+                }
+                TelephonyEvent::Unknown { message} => {
+                    //tracing::info!("Unknown event received: {}", message);
                 }
                 _ => {
                     tracing::debug!("Received event");

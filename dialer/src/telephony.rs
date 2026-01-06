@@ -38,6 +38,7 @@ pub enum TelephonyEvent {
     CallEnded { call_id: String },
     TransportUp,
     TransportDown,
+    Unknown { message: String }
 }
 
 #[async_trait::async_trait]
