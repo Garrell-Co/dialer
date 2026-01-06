@@ -1,6 +1,6 @@
 mod telephony;
 mod esl;
-mod parser;
+mod reader;
 
 // Re-export commonly used types for cleaner imports
 pub(crate) use telephony::FreeswitchTelephonyAdapter;

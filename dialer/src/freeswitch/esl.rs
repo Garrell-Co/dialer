@@ -8,7 +8,8 @@ use std::fmt;
 use std::sync::Arc;
 use tracing;
 
-use super::parser::EslParser;
+use super::reader::EslReader;
+use crate::telephony::TelephonyEvent;
 
 pub type Headers = HashMap<String, String>;
 
@@ -96,15 +97,16 @@ pub struct EslSupervisor;
 impl EslSupervisor {
     pub fn spawn(
         config: EslSupervisorConfig,
-    ) -> (EslHandle, mpsc::Receiver<EslEvent>) {
+    ) -> (EslHandle, mpsc::Receiver<EslEvent>, mpsc::Receiver<TelephonyEvent>) {
         let (cmd_tx, cmd_rx) = mpsc::channel::<EslCommand>(100);
         let (event_tx, event_rx) = mpsc::channel::<EslEvent>(100);
+        let (connection_state_tx, connection_state_rx) = mpsc::channel::<TelephonyEvent>(10);
         
         let handle = EslHandle::new(cmd_tx);
         
-        tokio::spawn(supervisor_task(config, cmd_rx, event_tx));
+        tokio::spawn(supervisor_task(config, cmd_rx, event_tx, connection_state_tx));
         
-        (handle, event_rx)
+        (handle, event_rx, connection_state_rx)
     }
 }
 
@@ -112,16 +114,26 @@ async fn supervisor_task(
     config: EslSupervisorConfig,
     mut cmd_rx: mpsc::Receiver<EslCommand>,
     event_tx: mpsc::Sender<EslEvent>,
+    connection_state_tx: mpsc::Sender<TelephonyEvent>,
 ) {
     loop {
         match establish_connection(&config).await {
             Ok((fs_reader, fs_writer)) => {
+                // Emit TransportUp when connection is established
+                let _ = connection_state_tx.send(TelephonyEvent::TransportUp).await;
+                tracing::info!("FreeSWITCH connection established, transport is up");
+                
                 if let Err(e) = run_connection(fs_reader, fs_writer, &mut cmd_rx, &event_tx).await {
                     tracing::error!("Connection error: {}, reconnecting...", e);
+                    // Emit TransportDown when connection is lost
+                    let _ = connection_state_tx.send(TelephonyEvent::TransportDown).await;
+                    tracing::warn!("FreeSWITCH connection lost, transport is down");
                 }
             }
             Err(e) => {
                 tracing::error!("Failed to connect: {}, retrying...", e);
+                // Emit TransportDown on connection failure
+                let _ = connection_state_tx.send(TelephonyEvent::TransportDown).await;
             }
         }
         
@@ -133,7 +145,7 @@ async fn supervisor_task(
 /// Establish a TCP connection and authenticate
 async fn establish_connection(
     config: &EslSupervisorConfig,
-) -> Result<(OwnedReadHalf, OwnedWriteHalf)> {
+) -> Result<(EslReader<OwnedReadHalf>, OwnedWriteHalf)> {
     tracing::debug!(
         host = %config.host,
         port = config.port,
@@ -148,27 +160,70 @@ async fn establish_connection(
     
     let (fs_reader, fs_writer) = fs_stream.into_split();
     
+    // Create an EslReader to parse responses
+    let mut reader = EslReader::new(fs_reader, config.event_format.clone());
+
+    // Expect auth request
+    match reader.read_next_event().await {
+        Ok(_) => {
+            tracing::debug!("Received auth req");
+        },
+        Err(_) => {
+            return Err(anyhow!("No auth request received"))
+        }
+    };
+    
     // Authenticate
     let auth_cmd = format!("auth {}\n\n", config.password);
     let mut writer = fs_writer;
     writer.write_all(auth_cmd.as_bytes()).await
         .context("Failed to send auth command")?;
 
-    tracing::debug!("Authenticated to FreeSWITCH");
+    // Read and parse auth response
+    let auth_response = reader.read_next_event().await
+        .context("Failed to read auth response")?
+        .ok_or_else(|| anyhow!("Unexpected EOF while reading auth response"))?;
+    
+    // Check if auth was successful
+    let reply_text = auth_response.frame_headers.get("Reply-Text")
+        .or_else(|| auth_response.event_headers.get("Reply-Text"))
+        .cloned()
+        .unwrap_or_default();
+    
+    if !reply_text.starts_with("+OK") {
+        return Err(anyhow!("Authentication failed: {}", reply_text));
+    }
+    
+    tracing::debug!("Authenticated to FreeSWITCH: {}", reply_text);
     
     // Subscribe to events
     let event_cmd = format!("event {} ALL\n\n", config.event_format);
     writer.write_all(event_cmd.as_bytes()).await
         .context("Failed to send event subscription")?;
 
-    tracing::debug!("Subscribed to FreeSWITCH events");
+    // Read and parse event subscription response
+    let event_response = reader.read_next_event().await
+        .context("Failed to read event subscription response")?
+        .ok_or_else(|| anyhow!("Unexpected EOF while reading event subscription response"))?;
     
-    Ok((fs_reader, writer))
+    // Check if event subscription was successful
+    let event_reply_text = event_response.frame_headers.get("Reply-Text")
+        .or_else(|| event_response.event_headers.get("Reply-Text"))
+        .cloned()
+        .unwrap_or_default();
+    
+    if !event_reply_text.starts_with("+OK") {
+        return Err(anyhow!("Event subscription failed: {}", event_reply_text));
+    }
+    
+    tracing::debug!("Subscribed to FreeSWITCH events: {}", event_reply_text);
+    
+    Ok((reader, writer))
 }
 
 
 async fn run_connection(
-    fs_reader: OwnedReadHalf,
+    mut fs_reader: EslReader<OwnedReadHalf>,
     fs_writer: OwnedWriteHalf,
     cmd_rx: &mut mpsc::Receiver<EslCommand>,
     event_tx: &mpsc::Sender<EslEvent>,
@@ -178,40 +233,77 @@ async fn run_connection(
     // Spawn reader task
     let pending_api_reader = pending_api.clone();
     let event_tx_clone = event_tx.clone();
-    let reader_handle = tokio::spawn(read_frames_and_forward(
+    let mut reader_handle = tokio::spawn(read_events_and_forward(
         fs_reader,
         event_tx_clone,
         pending_api_reader,
     ));
     
-    // Handle commands in the main task
+    // Run writer in the current task (so we can use the mutable reference to cmd_rx)
     let pending_api_writer = pending_api.clone();
-    let writer_result = send_commands_to_fs(
-        fs_writer,
-        cmd_rx,
-        pending_api_writer,
-    ).await;
     
-    reader_handle.abort();
+    // Use tokio::select! to wait for either reader or writer to fail
+    // Pin the writer future so we can use it in select
+    let writer_future = send_commands_to_fs(fs_writer, cmd_rx, pending_api_writer);
+    tokio::pin!(writer_future);
     
-    writer_result
+    // Wait for either reader or writer to fail
+    // If reader fails, connection is lost (EOF or parse error)
+    // If writer fails, connection is lost (write error)
+    tokio::select! {
+        reader_result = &mut reader_handle => {
+            // Reader task completed (either successfully or with error)
+            match reader_result {
+                Ok(Ok(())) => {
+                    // Reader completed successfully (shouldn't happen in normal operation)
+                    // Continue with writer
+                    writer_future.await
+                }
+                Ok(Err(e)) => {
+                    // Reader detected disconnection - this is the key fix!
+                    // Now the supervisor will know the connection is lost
+                    Err(e)
+                }
+                Err(e) => {
+                    // Reader task panicked
+                    Err(anyhow!("Reader task panicked: {:?}", e))
+                }
+            }
+        }
+        writer_result = writer_future.as_mut() => {
+            // Writer task completed (connection lost on write)
+            reader_handle.abort();
+            writer_result
+        }
+    }
 }
 
 
-async fn read_frames_and_forward(
-    fs_reader: OwnedReadHalf,
+async fn read_events_and_forward(
+    mut fs_reader: EslReader<OwnedReadHalf>,
     fs_event_tx: mpsc::Sender<EslEvent>,
     pending_api: Arc<Mutex<VecDeque<oneshot::Sender<Result<EslEvent>>>>>,
 ) -> Result<()> {
-    let mut parser = EslParser::new(fs_reader);
-
     loop {
-        let event = match parser.parse_frame().await {
+        let event = match fs_reader.read_next_event().await {
             Ok(Some(e)) => e,
-            Ok(None) => break,
+            Ok(None) => {
+                // EOF detected - connection closed by FreeSWITCH
+                tracing::warn!("ESL connection closed (EOF detected)");
+                let mut q = pending_api.lock().await;
+                while let Some(tx) = q.pop_front() {
+                    let _ = tx.send(Err(anyhow!("ESL connection closed")));
+                }
+                return Err(anyhow!("ESL connection closed (EOF)"));
+            }
             Err(e) => {
-                tracing::error!("Failed to parse event: {}", e);
-                break
+                // Parse error usually indicates connection issue
+                tracing::error!("Failed to parse event (connection likely lost): {}", e);
+                let mut q = pending_api.lock().await;
+                while let Some(tx) = q.pop_front() {
+                    let _ = tx.send(Err(anyhow!("ESL connection closed")));
+                }
+                return Err(e.context("ESL connection lost"));
             }
         };
 
@@ -236,13 +328,6 @@ async fn read_frames_and_forward(
             }
         }
     }
-
-    let mut q = pending_api.lock().await;
-    while let Some(tx) = q.pop_front() {
-        let _ = tx.send(Err(anyhow!("ESL connection closed")));
-    }
-
-    Ok(())
 }
 
 
@@ -257,14 +342,21 @@ async fn send_commands_to_fs(
                 EslCommand::Api { cmd, reply } => {
                     pending_api.lock().await.push_back(reply);
                     let wire = format!("api {}\n\n", cmd);
+                    tracing::debug!("[ESL WRITE] Sending API command: {}", wire);
+                    tracing::debug!("[ESL WRITE] Raw bytes ({}): {:?}", wire.len(), wire.as_bytes());
                     fs_writer.write_all(wire.as_bytes()).await?;
                 }
                 EslCommand::SendRaw { lines } => {
+                    tracing::debug!("[ESL WRITE] Sending raw command ({} bytes): {:?}", lines.len(), lines.as_bytes());
                     fs_writer.write_all(lines.as_bytes()).await?;
                 }
-                EslCommand::Close => break,
+                EslCommand::Close => {
+                    tracing::debug!("[ESL WRITE] Received Close command, breaking loop");
+                    break;
+                }
             }
         } else {
+            tracing::debug!("[ESL WRITE] Command channel closed, breaking loop");
             break;
         }
     }

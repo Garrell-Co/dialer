@@ -11,17 +11,22 @@ pub struct FreeswitchTelephonyAdapter {
 }
 
 impl FreeswitchTelephonyAdapter {
-    /// Create a new adapter from an EslHandle and event receiver
+    /// Create a new adapter from an EslHandle, event receiver, and connection state receiver
     /// This makes the adapter testable by allowing injection of the handle and events
-    pub fn new(esl_handle: EslHandle, mut esl_event_rx: mpsc::Receiver<EslEvent>) -> Self {
+    pub fn new(
+        esl_handle: EslHandle,
+        mut esl_event_rx: mpsc::Receiver<EslEvent>,
+        mut connection_state_rx: mpsc::Receiver<TelephonyEvent>,
+    ) -> Self {
         let (domain_tx, domain_rx) = mpsc::channel::<TelephonyEvent>(100);
 
         // Spawn task to convert ESL events to TelephonyEvent
+        let domain_tx_events = domain_tx.clone();
         tokio::spawn(async move {
             while let Some(esl_event) = esl_event_rx.recv().await {
                 match convert_esl_event(esl_event) {
                     Ok(telephony_event) => {
-                        if domain_tx.send(telephony_event).await.is_err() {
+                        if domain_tx_events.send(telephony_event).await.is_err() {
                             tracing::error!("Domain event channel closed");
                             break;
                         }
@@ -29,6 +34,16 @@ impl FreeswitchTelephonyAdapter {
                     Err(e) => {
                         tracing::debug!("Unhandled ESL event: {}", e);
                     }
+                }
+            }
+        });
+
+        // Spawn task to forward connection state events (TransportUp/TransportDown)
+        tokio::spawn(async move {
+            while let Some(connection_event) = connection_state_rx.recv().await {
+                if domain_tx.send(connection_event).await.is_err() {
+                    tracing::error!("Domain event channel closed");
+                    break;
                 }
             }
         });
@@ -49,47 +64,19 @@ impl FreeswitchTelephonyAdapter {
             event_format: config.event_format,
         };
 
-        let (esl_handle, esl_event_rx) = EslSupervisor::spawn(supervisor_config);
-        Ok(Self::new(esl_handle, esl_event_rx))
+        let (esl_handle, esl_event_rx, connection_state_rx) = EslSupervisor::spawn(supervisor_config);
+        Ok(Self::new(esl_handle, esl_event_rx, connection_state_rx))
     }
 }
 
-/// Print the entire ESL event
-fn print_esl_event(ev: &EslEvent) {
-    let event_name = ev.event_headers.get("Event-Name")
-        .or_else(|| ev.frame_headers.get("Event-Name"))
-        .cloned()
-        .unwrap_or_else(|| "Unknown".to_string());
-    tracing::info!("ESL Event - Name: {}", event_name);
-    tracing::info!("ESL Event - Frame Headers: {:?}", ev.frame_headers);
-    tracing::info!("ESL Event - Event Headers: {:?}", ev.event_headers);
-    
-    match &ev.event_body {
-        Some(body_bytes) => {
-            match String::from_utf8(body_bytes.clone()) {
-                Ok(body_str) => {
-                    tracing::info!("ESL Event - Body: {}", body_str);
-                }
-                Err(_) => {
-                    tracing::info!("ESL Event - Body (binary, {} bytes): {:?}", body_bytes.len(), body_bytes);
-                }
-            }
-        }
-        None => {
-            tracing::info!("ESL Event - Body: (empty)");
-        }
-    }
-}
 
 /// Convert ESL event to telephony event
 fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
     let call_id = ev.event_headers.get("Unique-ID")
-        .or_else(|| ev.frame_headers.get("Unique-ID"))
         .cloned()
         .unwrap_or_default();
     
     let event_name = ev.event_headers.get("Event-Name")
-        .or_else(|| ev.frame_headers.get("Event-Name"))
         .cloned()
         .unwrap_or_default();
     
