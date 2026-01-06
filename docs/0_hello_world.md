@@ -104,22 +104,21 @@ We will:
 - Decide what to do next
 
 
-## Freeswitch ESL command documentation
-- [The Freeswitch ESL command documentation can be found here](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_event_socket_1048924#3-command-documentation)
+## ESL documentation
+- [ESL Commands](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_event_socket_1048924#3-command-documentation)
 - [Events](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Events_32178330/#0-about)
 - [Event List](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Event-List_7143557)
 - [Event Headers](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Introduction/Event-System/Event-headers_32178341)
-
-## Freeswitch command documentation
-- [Commands](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_commands_1966741/)
-
-This will be referenced frequently since we are implementing our own ESL client
 
 
 ## Dialplan documentation
 - [Dialplan intro](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/)
 - [XML Dialplan](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/XML-Dialplan/)
 - [Loopback endpoint](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/Loopback-Endpoint_6587541/)
+- [Channel Variables](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/Channel-Variables_16352493/#Originate%5Frelated%5Fvariables)
+
+## Command documentation
+- [Commands](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_commands_1966741/)
 
 ## Implementation steps
 1. Dev container setup for repeatable and reusable dev environment

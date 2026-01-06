@@ -56,15 +56,7 @@ impl FreeswitchTelephonyAdapter {
 
     /// Convenience method that creates the supervisor and calls new
     pub async fn connect(config: EslSupervisorConfig) -> Result<Self> {
-        
-        let supervisor_config = EslSupervisorConfig {
-            host: config.host,
-            port: config.port,
-            password: config.password,
-            event_format: config.event_format,
-        };
-
-        let (esl_handle, esl_event_rx, connection_state_rx) = EslSupervisor::spawn(supervisor_config);
+        let (esl_handle, esl_event_rx, connection_state_rx) = EslSupervisor::spawn(config);
         Ok(Self::new(esl_handle, esl_event_rx, connection_state_rx))
     }
 }
@@ -93,7 +85,8 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
     async fn originate(&self, req: OriginateRequest) -> Result<()> {
-        self.esl_handle.api(format!("originate loopback/{}/{}", req.extension, req.context)).await?;
+        let res = self.esl_handle.api(format!("originate loopback/{} {}", req.extension, req.context)).await?;
+        res.event_headers.get("Unique-ID");
         Ok(())
     }
 

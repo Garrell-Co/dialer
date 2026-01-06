@@ -119,54 +119,6 @@ impl <R: AsyncReadExt + Unpin> EslReader<R> {
     }
 }
 
-/// Read a single event from a borrowed BufReader
-pub async fn read_next_event_from<R: AsyncReadExt + Unpin>(
-    reader: &mut BufReader<R>
-) -> Result<Option<EslEvent>> {
-    tracing::debug!("[RAW FRAME] Waiting to parse raw frame from wire");
-    
-    let packet_headers = match read_packet_headers_from(reader).await? {
-        Some(h) => {
-            tracing::debug!("[RAW FRAME] Parsed {} frame headers: {:?}", h.len(), h);
-            h
-        },
-        None => {
-            tracing::debug!("[RAW FRAME] EOF reached, no more frames");
-            return Ok(None)
-        }
-    };
-
-    // Note: This function is kept for backward compatibility but should use EslReader instead
-    // which has the event format configured
-    let raw_event = read_raw_event_with(reader, &packet_headers).await?;
-    
-    // Try to infer format from Content-Type header as fallback
-    let content_type = packet_headers.get("Content-Type")
-        .cloned()
-        .unwrap_or_default();
-    
-    let format = match content_type.as_str() {
-        s if s.contains("json") => EslEventFormat::Json,
-        s if s.contains("xml") => EslEventFormat::Xml,
-        _ => EslEventFormat::Plain,
-    };
-    
-    let ev = parse_event_with_format(&packet_headers, raw_event, &format)?;
-
-    let event = EslEvent {
-        frame_headers: packet_headers,
-        event_headers: ev.headers,
-        event_body: ev.body
-    };
-
-    tracing::debug!("[RAW FRAME] Final ESL event constructed - Frame headers: {:?}, Event headers: {:?}, Event body length: {:?}", 
-        event.frame_headers,
-        event.event_headers,
-        event.event_body.as_ref().map(|b| b.len())
-    );
-
-    Ok(Some(event))
-}
 
 /// Read packet headers from a borrowed BufReader
 pub async fn read_packet_headers_from<R: AsyncReadExt + Unpin>(
@@ -192,7 +144,6 @@ pub async fn read_packet_headers_from<R: AsyncReadExt + Unpin>(
         if let Some((key, value)) = line.trim().split_once(":") {
             let key = key.trim().to_string();
             let value = value.trim().to_string();
-            tracing::debug!("[RAW FRAME] Parsed frame header: {} = {}", key, value);
             headers.insert(key, value);
         } else {
             tracing::debug!("[RAW FRAME] Skipping malformed frame header line: {}", line.trim());
@@ -227,44 +178,6 @@ pub async fn read_raw_event_with<R: AsyncReadExt + Unpin>(
     }
 
     Ok(None)
-}
-
-/// Parse event from headers and raw body bytes using specified format
-/// This is a helper function for backward compatibility
-pub fn parse_event_with_format(
-    headers: &Headers, 
-    raw_event: Option<Vec<u8>>, 
-    format: &EslEventFormat
-) -> Result<Event> {
-    tracing::debug!("[EVENT] Using event format: {}", format);
-
-    // If the body contains event data, parse it
-    if let Some(body_bytes) = &raw_event {
-        match format {
-            EslEventFormat::Plain => {
-                tracing::debug!("[EVENT] Parsing plain text event format");
-                return parse_plain_event(body_bytes);
-            }
-            EslEventFormat::Json => {
-                tracing::debug!("[EVENT] Parsing JSON event format");
-                return parse_json_event(body_bytes);
-            },
-            EslEventFormat::Xml => {
-                tracing::debug!("[EVENT] Parsing XML event format (entire body is event body)");
-                return Ok(Event {
-                    headers: Headers::new(),
-                    body: Some(body_bytes.clone()),
-                });
-            }
-        }
-    }
-
-    // No body, return empty event frame
-    tracing::debug!("[EVENT] No body in raw frame, returning empty event frame");
-    Ok(Event {
-        headers: headers.clone(),
-        body: None,
-    })
 }
 
 /// Parse plain text event format
@@ -395,11 +308,6 @@ pub fn parse_json_event(body_bytes: &[u8]) -> Result<Event> {
             });
         }
     };
-
-    tracing::debug!("[EVENT] Completed JSON event parsing - Event headers: {:?}, Event body length: {:?}", 
-        event_headers,
-        event_body.as_ref().map(|b| b.len())
-    );
 
     Ok(Event {
         headers: event_headers,

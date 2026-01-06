@@ -1,5 +1,6 @@
 use tracing;
 
+use crate::freeswitch::types::FsEventKind;
 use crate::telephony::{OriginateRequest, TelephonyEvent, TelephonyPort};
 use crate::freeswitch::{EslEventFormat, EslSupervisorConfig, FreeswitchTelephonyAdapter};
 
@@ -58,6 +59,14 @@ impl Worker for DialerWorker {
             port: self.cfg.freeswitch_port,
             password: self.cfg.freeswitch_password.clone(),
             event_format: EslEventFormat::Json,
+            event_list: vec![
+                FsEventKind::CHANNEL_ORIGINATE,
+                FsEventKind::CHANNEL_CREATE,
+                FsEventKind::CHANNEL_PROGRESS,
+                FsEventKind::CHANNEL_ANSWER,
+                FsEventKind::CHANNEL_HANGUP,
+                FsEventKind::CHANNEL_DESTROY,
+            ]
         };
 
         let mut telephony = FreeswitchTelephonyAdapter::connect(supervisor_config).await?;

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tracing;
 
 use super::reader::EslReader;
+use crate::freeswitch::types::FsEventKind;
 use crate::telephony::TelephonyEvent;
 
 pub type Headers = HashMap<String, String>;
@@ -90,6 +91,7 @@ pub struct EslSupervisorConfig {
     pub port: u16,
     pub password: String,
     pub event_format: EslEventFormat,
+    pub event_list: Vec<FsEventKind>
 }
 
 pub struct EslSupervisor;
@@ -197,7 +199,11 @@ async fn establish_connection(
     tracing::debug!("Authenticated to FreeSWITCH: {}", reply_text);
     
     // Subscribe to events
-    let event_cmd = format!("event {} ALL\n\n", config.event_format);
+    let event_names: Vec<String> = config.event_list.iter()
+        .map(|e| e.to_string())
+        .collect();
+    let event_list_str = event_names.join(" ");
+    let event_cmd = format!("event {} {}\n\n", config.event_format, event_list_str);
     writer.write_all(event_cmd.as_bytes()).await
         .context("Failed to send event subscription")?;
 
