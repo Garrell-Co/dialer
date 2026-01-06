@@ -2,6 +2,7 @@ use anyhow::Result;
 use tokio::sync::mpsc;
 
 use crate::freeswitch::{EslSupervisor, EslSupervisorConfig};
+use crate::freeswitch::types::FsEventKind;
 use crate::telephony::{HangupRequest, OriginateRequest, OriginateResult, TelephonyEvent, TelephonyPort};
 use super::esl::{EslHandle, EslEvent};
 
@@ -11,8 +12,7 @@ pub struct FreeswitchTelephonyAdapter {
 }
 
 impl FreeswitchTelephonyAdapter {
-    /// Create a new adapter from an EslHandle, event receiver, and connection state receiver
-    /// This makes the adapter testable by allowing injection of the handle and events
+
     pub fn new(
         esl_handle: EslHandle,
         mut esl_event_rx: mpsc::Receiver<EslEvent>,
@@ -72,11 +72,12 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
         .cloned()
         .unwrap_or_default();
     
-    match event_name.as_str() {
-        "CHANNEL_CREATE" => Ok(TelephonyEvent::CallOffered { call_id }),
-        "CHANNEL_HANGUP" => Ok(TelephonyEvent::CallEnded { call_id }),
-        _ => {
-            //print_esl_event(&ev);
+    match event_name.parse::<FsEventKind>() {
+        Ok(FsEventKind::CHANNEL_CREATE) => Ok(TelephonyEvent::CallOffered { call_id }),
+        Ok(FsEventKind::CHANNEL_HANGUP) => Ok(TelephonyEvent::CallEnded { call_id }),
+        Ok(FsEventKind::CHANNEL_ANSWER) => Ok(TelephonyEvent::CallAnswered { call_id }),
+        Ok(_) | Err(_) => {
+            // Unknown event kind or parse error
             Ok(TelephonyEvent::Unknown { message: format!("{:?}", ev.event_headers) } )
         },
     }
@@ -94,8 +95,8 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
         Ok(OriginateResult { channel_leg_id: id })
     }
 
-    async fn hangup(&self, _request: HangupRequest) -> Result<()> {
-        // TODO: Implement hangup using self.esl_handle
+    async fn hangup(&self, req: HangupRequest) -> Result<()> {
+        self.esl_handle.api(format!("api uuid_kill {} NORMAL_CLEARING", req.call_id)).await?;
         Ok(())
     }
 

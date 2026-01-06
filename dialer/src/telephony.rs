@@ -40,6 +40,7 @@ pub struct CallLegEvent {
 pub enum TelephonyEvent {
     CallOffered { call_id: String },
     CallEnded { call_id: String },
+    CallAnswered { call_id: String },
     TransportUp,
     TransportDown,
     Unknown { message: String }

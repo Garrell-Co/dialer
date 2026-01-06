@@ -73,39 +73,86 @@ impl Worker for DialerWorker {
 
         let mut event_rx = telephony.take_event_rx();
 
+        // Wait for transport to be up
         loop {
             let event = event_rx.recv().await
                 .ok_or_else(|| {
                     tracing::error!("Channel closed, no more events");
                     anyhow::anyhow!("Channel closed, no more events")
                 })?;
+            
+            if let TelephonyEvent::TransportUp = event {
+                tracing::info!("Telephony connection established");
+                break;
+            }
+            
             match event {
-                TelephonyEvent::TransportUp => {
-                    tracing::info!("Telephony connection established");
-
-                    tracing::debug!("Originating call");
-
-                    let res = telephony.originate(OriginateRequest {
-                        from: "+2015557782".to_string(),
-                        to: "+2014007782".to_string(),
-                        context: "default".to_string(),
-                        extension: "1001".to_string(),
-                        priority: 1,
-                    }).await?;
-
-                    tracing::info!("Originated a call with id {}", res.channel_leg_id);
-                },
                 TelephonyEvent::TransportDown => {
-                    tracing::info!("Telephony connection lost");
-                }
-                TelephonyEvent::Unknown { message} => {
-                    //tracing::info!("Unknown event received: {}", message);
-                }
+                    tracing::info!("Telephony connection lost, waiting for transport up");
+                },
                 _ => {
-                    tracing::debug!("Received event");
+                    tracing::debug!("Received event while waiting for transport up: {:?}", event);
                 }
             }
         }
+
+        // Originate the call
+        tracing::debug!("Originating call");
+        let originate_result = telephony.originate(OriginateRequest {
+            from: "+2015557782".to_string(),
+            to: "+2014007782".to_string(),
+            context: "default".to_string(),
+            extension: "1001".to_string(),
+            priority: 1,
+        }).await?;
+
+        let originated_call_id = originate_result.channel_leg_id.clone();
+        tracing::info!("Originated a call with id {}", originated_call_id);
+
+        // Wait for the call to be answered, then hang up
+        loop {
+            let event = event_rx.recv().await
+                .ok_or_else(|| {
+                    tracing::error!("Channel closed, no more events");
+                    anyhow::anyhow!("Channel closed, no more events")
+                })?;
+            
+            match event {
+                TelephonyEvent::CallAnswered { call_id } => {
+                    if call_id == originated_call_id {
+                        tracing::info!("Call {} answered, hanging up", call_id);
+                        telephony.hangup(crate::telephony::HangupRequest {
+                            call_id: call_id.clone(),
+                        }).await?;
+                        tracing::info!("Hangup sent for call {}", call_id);
+                    } else {
+                        tracing::debug!("Call answered event for different call: {} (waiting for {})", call_id, originated_call_id);
+                    }
+                },
+                TelephonyEvent::CallEnded { call_id } => {
+                    if call_id == originated_call_id {
+                        tracing::info!("Call {} ended", call_id);
+                        break;
+                    }
+                },
+                TelephonyEvent::TransportDown => {
+                    tracing::info!("Telephony connection lost");
+                    break;
+                },
+                TelephonyEvent::Unknown { message } => {
+                    //tracing::info!("Unknown event received: {}", message);
+                }
+                _ => {
+                    tracing::debug!("Received event: {:?}", event);
+                }
+            }
+        }
+
+        // Wait for Ctrl+C (SIGINT) and exit gracefully
+        use tokio::signal;
+        signal::ctrl_c().await.expect("Failed to listen for ctrl_c");
+        tracing::info!("Ctrl+C received, shutting down");
+        Ok(())
     }
 }
 
