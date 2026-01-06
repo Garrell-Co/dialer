@@ -2,7 +2,7 @@ use anyhow::Result;
 use tokio::sync::mpsc;
 
 use crate::freeswitch::{EslSupervisor, EslSupervisorConfig};
-use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
+use crate::telephony::{HangupRequest, OriginateRequest, OriginateResult, TelephonyEvent, TelephonyPort};
 use super::esl::{EslHandle, EslEvent};
 
 pub struct FreeswitchTelephonyAdapter {
@@ -84,10 +84,14 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
 
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
-    async fn originate(&self, req: OriginateRequest) -> Result<()> {
-        let res = self.esl_handle.api(format!("originate loopback/{} {}", req.extension, req.context)).await?;
-        res.event_headers.get("Unique-ID");
-        Ok(())
+    async fn originate(&self, req: OriginateRequest) -> Result<OriginateResult> {
+        let res = self.esl_handle.api(format!("originate loopback/{} {} park", req.extension, req.context)).await?;
+        let id = res.event_body
+            .as_ref()
+            .and_then(|body| std::str::from_utf8(body).ok())
+            .map(|s| s.trim().split_whitespace().last().unwrap_or("").to_string())
+            .unwrap_or_default();
+        Ok(OriginateResult { channel_leg_id: id })
     }
 
     async fn hangup(&self, _request: HangupRequest) -> Result<()> {

@@ -85,13 +85,15 @@ impl Worker for DialerWorker {
 
                     tracing::debug!("Originating call");
 
-                    telephony.originate(OriginateRequest {
+                    let res = telephony.originate(OriginateRequest {
                         from: "+2015557782".to_string(),
                         to: "+2014007782".to_string(),
                         context: "default".to_string(),
                         extension: "1001".to_string(),
                         priority: 1,
                     }).await?;
+
+                    tracing::info!("Originated a call with id {}", res.channel_leg_id);
                 },
                 TelephonyEvent::TransportDown => {
                     tracing::info!("Telephony connection lost");

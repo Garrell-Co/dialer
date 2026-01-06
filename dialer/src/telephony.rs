@@ -11,6 +11,10 @@ pub struct OriginateRequest {
     pub priority: u8,
 }
 
+pub struct OriginateResult {
+    pub channel_leg_id: String
+}
+
 pub struct HangupRequest {
     pub call_id: String,
 }
@@ -43,7 +47,7 @@ pub enum TelephonyEvent {
 
 #[async_trait::async_trait]
 pub trait TelephonyPort {
-    async fn originate(&self, request: OriginateRequest) -> Result<()>;
+    async fn originate(&self, request: OriginateRequest) -> Result<OriginateResult>;
     async fn hangup(&self, request: HangupRequest) -> Result<()>;
     fn take_event_rx(&mut self) -> mpsc::Receiver<TelephonyEvent>; 
 }
