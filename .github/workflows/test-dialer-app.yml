@@ -2,6 +2,10 @@ name: Dialer Rust Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - 'dialer/src/**'
+      - 'dialer/Cargo.toml'
+      - 'dialer/Cargo.lock'
 jobs:
   cargo_test:
     name: Cargo Test
