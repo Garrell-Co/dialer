@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use tokio::sync::{mpsc};
 
 pub struct OriginateRequest {
+    pub id: String,
     pub from: String,
     pub to: String,
     pub context: String,

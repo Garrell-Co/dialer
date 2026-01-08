@@ -101,7 +101,9 @@ impl Worker for DialerWorker {
         }
 
         tracing::debug!("Originating call");
+        let origination_uuid = "8d47cccc-1320-445e-b9ab-23db31c8b35f";
         telephony.originate(OriginateRequest {
+            id: origination_uuid.to_string(),
             from: "+2015557782".to_string(),
             to: "+2014007782".to_string(),
             context: "loopback-test".to_string(),

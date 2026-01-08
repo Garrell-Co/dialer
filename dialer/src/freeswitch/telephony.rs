@@ -87,7 +87,8 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
     async fn originate(&self, req: OriginateRequest) -> Result<OriginateResult> {
-        let res = self.esl_handle.api(format!("originate loopback/{}/{} &park()", req.extension, req.context)).await?;
+        let res = self.esl_handle.api(format!("originate {{origination_uuid={}}}loopback/{}/{} &park()", 
+                                                        req.id, req.extension, req.context)).await?;
         let id = res.event_body
             .as_ref()
             .and_then(|body| std::str::from_utf8(body).ok())
