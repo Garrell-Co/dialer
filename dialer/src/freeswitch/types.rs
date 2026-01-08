@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, dead_code, clippy::upper_case_acronyms)]
 #[derive(Debug, Clone)]
 pub enum FsEventKind {
     // Channel Events

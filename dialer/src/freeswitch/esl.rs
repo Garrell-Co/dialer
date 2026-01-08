@@ -6,7 +6,6 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot, Mutex};
-use tracing;
 
 use super::reader::EslReader;
 use crate::freeswitch::types::FsEventKind;
@@ -21,6 +20,7 @@ pub struct EslEvent {
     pub event_body: Option<Vec<u8>>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum EslEventFormat {
     Json,
@@ -39,6 +39,7 @@ impl fmt::Display for EslEventFormat {
     }
 }
 
+#[allow(dead_code)]
 pub enum EslCommand {
     /// "api <cmd>\n\n" with oneshot reply fulfilled by reader loop
     Api {
@@ -78,7 +79,7 @@ impl EslHandle {
         rx.await.map_err(|_| anyhow!("ESL reply channel dropped"))?
     }
 
-    /// Send raw lines to the ESL connection
+    #[allow(dead_code)]
     pub async fn send_raw(&self, lines: String) -> Result<()> {
         self.cmd_tx
             .send(EslCommand::SendRaw { lines })
@@ -252,7 +253,7 @@ async fn establish_connection(
 }
 
 async fn run_connection(
-    mut fs_reader: EslReader<OwnedReadHalf>,
+    fs_reader: EslReader<OwnedReadHalf>,
     fs_writer: OwnedWriteHalf,
     cmd_rx: &mut mpsc::Receiver<EslCommand>,
     event_tx: &mpsc::Sender<EslEvent>,

@@ -153,12 +153,6 @@ impl Worker for DialerWorker {
                 }
             }
         }
-
-        // Wait for Ctrl+C (SIGINT) and exit gracefully
-        use tokio::signal;
-        signal::ctrl_c().await.expect("Failed to listen for ctrl_c");
-        tracing::info!("Ctrl+C received, shutting down");
-        Ok(())
     }
 }
 

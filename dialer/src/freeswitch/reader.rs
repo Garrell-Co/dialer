@@ -1,7 +1,6 @@
 use anyhow::Result;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
-use tracing;
 
 use crate::freeswitch::esl::{EslEvent, EslEventFormat, Headers};
 

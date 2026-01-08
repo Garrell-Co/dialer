@@ -119,7 +119,7 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
             .event_body
             .as_ref()
             .and_then(|body| std::str::from_utf8(body).ok())
-            .map(|s| s.trim().split_whitespace().last().unwrap_or("").to_string())
+            .map(|s| s.split_whitespace().last().unwrap_or("").to_string())
             .unwrap_or_default();
         Ok(OriginateResult { channel_leg_id: id })
     }

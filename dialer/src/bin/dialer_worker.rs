@@ -1,6 +1,5 @@
 use dialer::app;
 use dialer::app::WorkerConfig;
-use dotenvy;
 use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]

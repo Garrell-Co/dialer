@@ -1,8 +1,8 @@
 use anyhow::Result;
-use std::collections::HashMap;
 
 use tokio::sync::mpsc;
 
+#[allow(dead_code)]
 pub struct OriginateRequest {
     pub id: String,
     pub from: String,
@@ -18,23 +18,6 @@ pub struct OriginateResult {
 
 pub struct HangupRequest {
     pub call_id: String,
-}
-
-#[derive(Clone)]
-pub enum CallLegEventType {
-    Created,
-    Ringing,
-    Answered,
-    Hungup { reason: String },
-    Unknown { name: String },
-}
-
-#[derive(Clone)]
-pub struct CallLegEvent {
-    pub call_leg_id: String,
-    pub at: std::time::SystemTime,
-    pub kind: CallLegEventType,
-    pub raw: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug)]
@@ -59,6 +42,7 @@ pub enum TelephonyEvent {
     },
 }
 
+#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait TelephonyPort {
     async fn originate(&self, request: OriginateRequest) -> Result<OriginateResult>;
