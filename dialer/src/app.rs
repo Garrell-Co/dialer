@@ -3,9 +3,8 @@ use std::collections::HashSet;
 use tracing;
 
 use crate::freeswitch::types::FsEventKind;
-use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
 use crate::freeswitch::{EslEventFormat, EslSupervisorConfig, FreeswitchTelephonyAdapter};
-
+use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
 
 #[derive(Clone, Debug)]
 pub struct WorkerConfig {
@@ -16,7 +15,6 @@ pub struct WorkerConfig {
     pub freeswitch_port: u16,
     pub freeswitch_password: String,
 }
-
 
 impl WorkerConfig {
     pub fn from_env_and_args() -> anyhow::Result<Self> {
@@ -37,9 +35,8 @@ impl WorkerConfig {
     }
 }
 
-
 struct DialerWorker {
-    cfg: WorkerConfig
+    cfg: WorkerConfig,
 }
 
 trait Worker {
@@ -70,7 +67,7 @@ impl Worker for DialerWorker {
                 FsEventKind::CHANNEL_DESTROY,
                 FsEventKind::CHANNEL_BRIDGE,
                 FsEventKind::CHANNEL_UNBRIDGE,
-            ]
+            ],
         };
 
         let mut telephony = FreeswitchTelephonyAdapter::connect(supervisor_config).await?;
@@ -79,21 +76,20 @@ impl Worker for DialerWorker {
 
         // Wait for transport to be up
         loop {
-            let event = event_rx.recv().await
-                .ok_or_else(|| {
-                    tracing::error!("Channel closed, no more events");
-                    anyhow::anyhow!("Channel closed, no more events")
-                })?;
-            
+            let event = event_rx.recv().await.ok_or_else(|| {
+                tracing::error!("Channel closed, no more events");
+                anyhow::anyhow!("Channel closed, no more events")
+            })?;
+
             if let TelephonyEvent::TransportUp = event {
                 tracing::info!("Telephony connection established");
                 break;
             }
-            
+
             match event {
                 TelephonyEvent::TransportDown => {
                     tracing::info!("Telephony connection lost, waiting for transport up");
-                },
+                }
                 _ => {
                     tracing::debug!("Received event while waiting for transport up: {:?}", event);
                 }
@@ -102,30 +98,33 @@ impl Worker for DialerWorker {
 
         tracing::debug!("Originating call");
         let origination_uuid = "8d47cccc-1320-445e-b9ab-23db31c8b35f";
-        let actual_id = telephony.originate(OriginateRequest {
-            id: origination_uuid.to_string(),
-            from: "+2015557782".to_string(),
-            to: "+2014007782".to_string(),
-            context: "loopback-test".to_string(),
-            extension: "park".to_string(),
-            priority: 1,
-        }).await?;
+        let actual_id = telephony
+            .originate(OriginateRequest {
+                id: origination_uuid.to_string(),
+                from: "+2015557782".to_string(),
+                to: "+2014007782".to_string(),
+                context: "loopback-test".to_string(),
+                extension: "park".to_string(),
+                priority: 1,
+            })
+            .await?;
 
         let mut calls = HashSet::<String>::new();
 
         // Wait for the call to be answered, then hang up
         loop {
-            let event = event_rx.recv().await
-                .ok_or_else(|| {
-                    tracing::error!("Channel closed, no more events");
-                    anyhow::anyhow!("Channel closed, no more events")
-                })?;
+            let event = event_rx.recv().await.ok_or_else(|| {
+                tracing::error!("Channel closed, no more events");
+                anyhow::anyhow!("Channel closed, no more events")
+            })?;
             match event {
                 TelephonyEvent::CallAnswered { call_id } => {
                     tracing::info!("Call {} answered", call_id);
-                    let req = HangupRequest { call_id: actual_id.channel_leg_id.clone() };
+                    let req = HangupRequest {
+                        call_id: actual_id.channel_leg_id.clone(),
+                    };
                     telephony.hangup(req).await?;
-                },
+                }
                 TelephonyEvent::CallEnded { call_id, reason } => {
                     if let Some(ref hangup_reason) = reason {
                         tracing::info!("Call {} ended with reason: {}", call_id, hangup_reason);
@@ -133,19 +132,19 @@ impl Worker for DialerWorker {
                         tracing::info!("Call {} ended", call_id);
                     }
                     calls.remove(&call_id);
-                },
+                }
                 TelephonyEvent::CallOriginated { call_id } => {
                     tracing::info!("Call {} originated", call_id);
                     calls.insert(call_id);
-                },
+                }
                 TelephonyEvent::CallLegCreated { call_id } => {
                     tracing::info!("Call {} leg created", call_id);
                     calls.insert(call_id);
-                },
+                }
                 TelephonyEvent::TransportDown => {
                     tracing::info!("Telephony connection lost");
                     calls.clear();
-                },
+                }
                 TelephonyEvent::Unknown { message } => {
                     tracing::info!("Unknown event received: {}", message);
                 }
@@ -163,11 +162,9 @@ impl Worker for DialerWorker {
     }
 }
 
-
 async fn build_worker(cfg: WorkerConfig) -> anyhow::Result<impl Worker> {
     Ok(DialerWorker { cfg })
 }
-
 
 pub async fn run_worker(cfg: WorkerConfig) -> anyhow::Result<()> {
     let mut worker = build_worker(cfg).await?;

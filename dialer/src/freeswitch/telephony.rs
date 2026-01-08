@@ -1,10 +1,12 @@
 use anyhow::Result;
 use tokio::sync::mpsc;
 
-use crate::freeswitch::{EslSupervisor, EslSupervisorConfig};
+use super::esl::{EslEvent, EslHandle};
 use crate::freeswitch::types::FsEventKind;
-use crate::telephony::{HangupRequest, OriginateRequest, OriginateResult, TelephonyEvent, TelephonyPort};
-use super::esl::{EslHandle, EslEvent};
+use crate::freeswitch::{EslSupervisor, EslSupervisorConfig};
+use crate::telephony::{
+    HangupRequest, OriginateRequest, OriginateResult, TelephonyEvent, TelephonyPort,
+};
 
 pub struct FreeswitchTelephonyAdapter {
     domain_rx: Option<mpsc::Receiver<TelephonyEvent>>,
@@ -12,7 +14,6 @@ pub struct FreeswitchTelephonyAdapter {
 }
 
 impl FreeswitchTelephonyAdapter {
-
     pub fn new(
         esl_handle: EslHandle,
         mut esl_event_rx: mpsc::Receiver<EslEvent>,
@@ -61,44 +62,61 @@ impl FreeswitchTelephonyAdapter {
     }
 }
 
-
 /// Convert ESL event to telephony event
 fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
-    let call_id = ev.event_headers.get("Unique-ID")
+    let call_id = ev
+        .event_headers
+        .get("Unique-ID")
         .cloned()
         .unwrap_or_default();
-    
-    let event_name = ev.event_headers.get("Event-Name")
+
+    let event_name = ev
+        .event_headers
+        .get("Event-Name")
         .cloned()
         .unwrap_or_default();
-    
+
     match event_name.parse::<FsEventKind>() {
         Ok(FsEventKind::CHANNEL_CREATE) => Ok(TelephonyEvent::CallLegCreated { call_id }),
         Ok(FsEventKind::CHANNEL_HANGUP) => {
-            let hangup_reason = ev.event_headers.get("Hangup-Cause")
-                .cloned();
-            Ok(TelephonyEvent::CallEnded { call_id, reason: hangup_reason })
-        },
+            let hangup_reason = ev.event_headers.get("Hangup-Cause").cloned();
+            Ok(TelephonyEvent::CallEnded {
+                call_id,
+                reason: hangup_reason,
+            })
+        }
         Ok(FsEventKind::CHANNEL_ANSWER) => Ok(TelephonyEvent::CallAnswered { call_id }),
         Ok(FsEventKind::CHANNEL_ORIGINATE) => Ok(TelephonyEvent::CallOriginated { call_id }),
         Ok(_) | Err(_) => {
             // Unknown event kind or parse error
             if let Some(b) = ev.event_body.as_ref() {
                 if let Ok(s) = std::str::from_utf8(b) {
-                    tracing::info!("Unknown or unhandled event: {}\nBody (UTF-8): '{}'", event_name, s);
+                    tracing::info!(
+                        "Unknown or unhandled event: {}\nBody (UTF-8): '{}'",
+                        event_name,
+                        s
+                    );
                 }
             }
-            Ok(TelephonyEvent::Unknown { message: format!("{:?}", event_name) })
-        },
+            Ok(TelephonyEvent::Unknown {
+                message: format!("{:?}", event_name),
+            })
+        }
     }
 }
 
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
     async fn originate(&self, req: OriginateRequest) -> Result<OriginateResult> {
-        let res = self.esl_handle.api(format!("originate {{origination_uuid={}}}loopback/{}/{} &park()", 
-                                                        req.id, req.extension, req.context)).await?;
-        let id = res.event_body
+        let res = self
+            .esl_handle
+            .api(format!(
+                "originate {{origination_uuid={}}}loopback/{}/{} &park()",
+                req.id, req.extension, req.context
+            ))
+            .await?;
+        let id = res
+            .event_body
             .as_ref()
             .and_then(|body| std::str::from_utf8(body).ok())
             .map(|s| s.trim().split_whitespace().last().unwrap_or("").to_string())
@@ -107,7 +125,9 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
     }
 
     async fn hangup(&self, req: HangupRequest) -> Result<()> {
-        self.esl_handle.api(format!("uuid_kill {} NORMAL_CLEARING", req.call_id)).await?;
+        self.esl_handle
+            .api(format!("uuid_kill {} NORMAL_CLEARING", req.call_id))
+            .await?;
         Ok(())
     }
 
@@ -120,5 +140,3 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
         self.domain_rx.take().expect("domain_rx already taken")
     }
 }
-
-

@@ -27,7 +27,7 @@ pub enum FsEventKind {
     CHANNEL_DATA,
     CHANNEL_UUID,
     CHANNEL_CALLSTATE,
-    
+
     // System Events
     SHUTDOWN,
     STARTUP,
@@ -36,17 +36,17 @@ pub enum FsEventKind {
     HEARTBEAT,
     MODULE_LOAD,
     MODULE_UNLOAD,
-    
+
     // Call Detail Records
     CDR,
-    
+
     // Custom Events
     CUSTOM,
-    
+
     // API Events
     API,
     COMMAND,
-    
+
     // Background Jobs
     BACKGROUND_JOB,
 }
@@ -136,4 +136,3 @@ impl FromStr for FsEventKind {
         }
     }
 }
-

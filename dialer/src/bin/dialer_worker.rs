@@ -1,7 +1,7 @@
 use dialer::app;
 use dialer::app::WorkerConfig;
-use tracing_subscriber::{fmt, EnvFilter};
 use dotenvy;
+use tracing_subscriber::{fmt, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -11,7 +11,11 @@ async fn main() -> anyhow::Result<()> {
 
     init_tracing(&cfg)?;
 
-    tracing::info!("Starting worker '{}' at log_level={}", cfg.worker_name, cfg.log_level);
+    tracing::info!(
+        "Starting worker '{}' at log_level={}",
+        cfg.worker_name,
+        cfg.log_level
+    );
 
     app::run_worker(cfg).await
 }
