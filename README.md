@@ -25,36 +25,42 @@ Before you continue, consider
    - Open this project in VS Code
    - When prompted, click "Reopen in Container" or use Command Palette (ctrl + shift + p) → "Dev Containers: Reopen in Container"
 
-2. **Set up FreeSWITCH**
+2. **Install up FreeSWITCH**
    - Copy the example environment file:
      ```bash
-     cp tools/.env.example tools/.env
+     cp dialer/tools/.env.example dialer/tools/.env
      ```
    
    - Get your FreeSWITCH Personal Access Token (PAT):
      - Visit https://freeswitch.org/fsget
      - Follow the instructions to obtain your PAT
    
-   - Edit `tools/.env` and add your PAT:
+   - Edit `dialer/tools/.env` and add your PAT:
      ```bash
      PAT=your_actual_token_here
      ```
    
    - Install FreeSWITCH:
      ```bash
-     ./tools/fs-up
+     ./dialer/tools/fs-up
      ```
    
    - Verify the installation:
      ```bash
-     ./tools/check-freeswitch.sh
+     ./dialer/tools/check-freeswitch.sh
      ```
      This script will check if FreeSWITCH is properly installed and show you the installed packages, modules, and configuration.
 
-3. **Run FreeSWITCH**
+
+That's it! Your development environment is ready.
+
+
+## Running the dialer
+
+1. **Run FreeSWITCH**
    - Start FreeSWITCH in development mode:
      ```bash
-     ./tools/fs-run
+     ./dialer/tools/fs-run
      ```
    
    - The script will:
@@ -65,4 +71,28 @@ Before you continue, consider
    
    - To stop FreeSWITCH, press `Ctrl+C` in the terminal where it's running
 
-That's it! Your development environment is ready.
+
+2. **Run dialer app**
+   - First, copy the example environment file:
+     ```bash
+     cp dialer/.env.example dialer/.env
+     ```
+   
+   - Edit `dialer/.env` and update the FreeSWITCH connection settings if needed (default values should work for local development):
+     - `FREESWITCH_HOST`: FreeSWITCH hostname (default: `localhost`)
+     - `FREESWITCH_PORT`: FreeSWITCH ESL port (default: `8021`)
+     - `FREESWITCH_PASSWORD`: FreeSWITCH ESL password (default: `ClueCon`)
+   
+   - Run the dialer worker:
+     ```bash
+     cargo run --bin dialer_worker
+     ```
+   
+   - The dialer worker will:
+     - Connect to FreeSWITCH via Event Socket Library (ESL)
+     - Subscribe to telephony events (call originate, answer, hangup, etc.)
+     - Process call events and manage call state
+   
+   - To stop the dialer worker, press `Ctrl+C` in the terminal where it's running
+   
+   - Note: Make sure FreeSWITCH is running (step 1) before starting the dialer worker, as it needs to connect to the FreeSWITCH ESL socket
