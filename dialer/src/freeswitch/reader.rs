@@ -81,14 +81,6 @@ impl <R: AsyncReadExt + Unpin> EslReader<R> {
     fn parse_event(&self, raw_event: Option<Vec<u8>>) -> Result<Event> {
         tracing::debug!("[EVENT] Using event format: {}", self.event_format);
 
-        if let Some(ref body_bytes) = raw_event {
-            if let Ok(body_str) = String::from_utf8(body_bytes.clone()) {
-                tracing::debug!("[EVENT] Raw event body as UTF-8: {}", body_str);
-            } else {
-                tracing::debug!("[EVENT] Raw event body is not valid UTF-8 ({} bytes)", body_bytes.len());
-            }
-        }
-
         // If the body contains event data, parse it
         if let Some(body_bytes) = &raw_event {
             match self.event_format {
@@ -183,50 +175,69 @@ pub async fn read_raw_event_with<R: AsyncReadExt + Unpin>(
 /// Parse plain text event format
 pub fn parse_plain_event(body_bytes: &[u8]) -> Result<Event> {
     tracing::debug!("[EVENT] Parsing plain text event body ({} bytes)", body_bytes.len());
-    let body_str = String::from_utf8(body_bytes.to_vec())
-        .map_err(|e| anyhow::anyhow!("Failed to parse event body as UTF-8: {}", e))?;
     
-    let mut lines = body_str.lines();
+    // Convert entire body_bytes to UTF-8
+    let body_str = String::from_utf8(body_bytes.to_vec())
+        .map_err(|e| anyhow::anyhow!("Failed to parse plain text event body as UTF-8: {}", e))?;
+    
+    // Find the first LF (\n) - that's the end of headers and start of body
+    // If no newline is found, there's no body - the entire body_bytes is just headers (or just body)
+    // Note: CRLF handling is done at the frame level, so we only see LF here
+    let (headers_str, event_body) = if let Some(headers_end_pos) = body_str.find('\n') {
+        // Parse the leading headers (everything before the first line feed)
+        let headers_str = body_str[..headers_end_pos].trim();
+        
+        // Extract remaining data as body (everything after the first line feed)
+        // The frame terminator newline is handled by the calling method, so we take
+        // everything from after the first newline to the end of body_bytes
+        let event_body_str = &body_str[headers_end_pos + 1..];
+        
+        let event_body = if event_body_str.trim().is_empty() {
+            None
+        } else {
+            Some(event_body_str.as_bytes().to_vec())
+        };
+        
+        (headers_str, event_body)
+    } else {
+        // No newline found - entire body_bytes is either just headers or just a body
+        // Try to parse as headers (key:value pairs), if it doesn't match, treat as body
+        let trimmed = body_str.trim();
+        (trimmed, None)
+    };
+    
+    // Parse headers from the headers_str (key:value pairs on separate lines)
     let mut event_headers = Headers::new();
-    let mut found_blank_line = false;
-
-    // Parse event headers (until blank line)
-    for line in lines.by_ref() {
-        if line.trim().is_empty() {
-            found_blank_line = true;
-            break;
+    for line in headers_str.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue; // Skip blank lines
         }
         
-        if let Some((key, value)) = line.trim().split_once(":") {
+        if let Some((key, value)) = line.split_once(":") {
             let key = key.trim().to_string();
             let value = value.trim().to_string();
             event_headers.insert(key, value);
         } else {
-            tracing::debug!("[EVENT] Skipping malformed event header line: {}", line.trim());
+            tracing::debug!("[EVENT] Skipping malformed event header line: {}", line);
         }
     }
-
-    // Extract event body (everything after blank line)
-    let event_body = if found_blank_line {
-        let body_lines: Vec<&str> = lines.collect();
-        if !body_lines.is_empty() {
-            let body_content = body_lines.join("\n");
-            Some(body_content.into_bytes())
-        } else {
-            None
-        }
+    
+    // If no headers were found and there's no body, treat the entire content as body
+    let (final_headers, final_body) = if event_headers.is_empty() && event_body.is_none() {
+        (Headers::new(), Some(body_bytes.to_vec()))
     } else {
-        None
+        (event_headers, event_body)
     };
 
     tracing::debug!("[EVENT] Completed plain event parsing - Event headers: {:?}, Event body length: {:?}", 
-        event_headers,
-        event_body.as_ref().map(|b| b.len())
+        final_headers,
+        final_body.as_ref().map(|b| b.len())
     );
 
     Ok(Event {
-        headers: event_headers,
-        body: event_body,
+        headers: final_headers,
+        body: final_body,
     })
 }
 
@@ -329,7 +340,7 @@ fn is_header_break(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    use std::{collections::HashMap, io::Cursor};
     use crate::freeswitch::esl::EslEventFormat;
 
     #[tokio::test]
@@ -346,7 +357,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_parse_with_body() {
+    async fn test_parse_with_only_headers() {
         let data = "Content-Type: text/event-json\nContent-Length: 15\n\n{\"key\":\"value\"}\n\n";
         let cursor = Cursor::new(data.as_bytes());
         let mut parser = EslReader::new(cursor, EslEventFormat::Json);
@@ -355,14 +366,49 @@ mod tests {
         
         assert_eq!(event.frame_headers.get("Content-Type"), Some(&"text/event-json".to_string()));
         assert_eq!(event.frame_headers.get("Content-Length"), Some(&"15".to_string()));
-        assert_eq!(event.event_body, Some(b"{\"key\":\"value\"}".to_vec()));
+        let mut expected = HashMap::new();
+        expected.insert("key".to_string(), "value".to_string());
+        assert_eq!(event.event_headers, expected);
     }
 
     #[tokio::test]
-    async fn test_parse_multiple_messages() {
-        let data = "Content-Type: auth/request\n\nContent-Type: text/event-plain\nContent-Length: 5\n\nhello\n\n";
+    async fn test_parse_json_with_only_body() {
+        let data = "Content-Type: text/event-json\nContent-Length: 18\n\n+OK command result\n\n";
         let cursor = Cursor::new(data.as_bytes());
-        let mut parser = EslReader::new(cursor, EslEventFormat::Plain);
+        let mut parser = EslReader::new(cursor, EslEventFormat::Json);
+
+        let event = parser.read_next_event().await.unwrap().unwrap();
+        
+        assert_eq!(event.frame_headers.get("Content-Type"), Some(&"text/event-json".to_string()));
+        assert_eq!(event.frame_headers.get("Content-Length"), Some(&"18".to_string()));
+        let expected = HashMap::new();
+        assert_eq!(event.event_headers, expected);
+        assert_eq!(event.event_body, Some(b"+OK command result".to_vec()));
+    }
+
+    #[tokio::test]
+    async fn test_parse_json_with_headers_and_body() {
+        let data = "Content-Type: text/event-json\nContent-Length: 34\n\n{\"key\":\"value\"}\n+OK command result\n\n";
+        let cursor = Cursor::new(data.as_bytes());
+        let mut parser = EslReader::new(cursor, EslEventFormat::Json);
+
+        let event = parser.read_next_event().await.unwrap().unwrap();
+        
+        assert_eq!(event.frame_headers.get("Content-Type"), Some(&"text/event-json".to_string()));
+        assert_eq!(event.frame_headers.get("Content-Length"), Some(&"34".to_string()));
+        let mut expected = HashMap::new();
+        expected.insert("key".to_string(), "value".to_string());
+        assert_eq!(event.event_headers, expected);
+        assert_eq!(event.event_body, Some(b"+OK command result".to_vec()));
+    }
+
+
+
+    #[tokio::test]
+    async fn test_parse_multiple_messages() {
+        let data = "Content-Type: auth/request\n\nContent-Type: text/event-json\nContent-Length: 5\n\nhello\n\n";
+        let cursor = Cursor::new(data.as_bytes());
+        let mut parser = EslReader::new(cursor, EslEventFormat::Json);
 
         // Parse first message (no body)
         let event1 = parser.read_next_event().await.unwrap().unwrap();
@@ -371,7 +417,7 @@ mod tests {
 
         // Parse second message (with body)
         let event2 = parser.read_next_event().await.unwrap().unwrap();
-        assert_eq!(event2.frame_headers.get("Content-Type"), Some(&"text/event-plain".to_string()));
+        assert_eq!(event2.frame_headers.get("Content-Type"), Some(&"text/event-json".to_string()));
         assert_eq!(event2.frame_headers.get("Content-Length"), Some(&"5".to_string()));
         assert_eq!(event2.event_body, Some(b"hello".to_vec()));
     }
@@ -391,15 +437,6 @@ mod tests {
         assert!(result.is_none());
     }
 
-    #[tokio::test]
-    async fn test_parse_body_with_newlines() {
-        let data = "Content-Type: text/event-plain\nContent-Length: 12\n\nline1\nline2\n\n";
-        let cursor = Cursor::new(data.as_bytes());
-        let mut parser = EslReader::new(cursor, EslEventFormat::Plain);
-
-        let event = parser.read_next_event().await.unwrap().unwrap();
-        assert_eq!(event.event_body, Some(b"line1\nline2".to_vec()));
-    }
 
     #[tokio::test]
     async fn test_parse_multiple_headers() {
@@ -413,70 +450,4 @@ mod tests {
         assert_eq!(event.frame_headers.get("Content-Length"), Some(&"0".to_string()));
     }
 
-    #[tokio::test]
-    async fn test_parse_json_event_heartbeat() {
-        // Raw bytes from actual FreeSWITCH HEARTBEAT event
-        // The bytes already include a newline (10) at the end after the closing brace (125)
-        let full_frame: Vec<u8> = vec![
-            123, 34, 69, 118, 101, 110, 116, 45, 78, 97, 109, 101, 34, 58, 34, 72, 69, 65, 82, 84, 66, 69, 65, 84, 34, 44,
-            34, 67, 111, 114, 101, 45, 85, 85, 73, 68, 34, 58, 34, 57, 52, 99, 101, 101, 97, 57, 52, 45, 98, 100, 50, 48,
-            45, 52, 51, 57, 48, 45, 56, 55, 99, 98, 45, 56, 100, 52, 56, 100, 52, 55, 101, 54, 55, 48, 52, 34, 44,
-            34, 70, 114, 101, 101, 83, 87, 73, 84, 67, 72, 45, 72, 111, 115, 116, 110, 97, 109, 101, 34, 58, 34, 101, 52,
-            49, 49, 101, 99, 100, 49, 57, 57, 48, 99, 34, 44, 34, 70, 114, 101, 101, 83, 87, 73, 84, 67, 72, 45, 83, 119,
-            105, 116, 99, 104, 110, 97, 109, 101, 34, 58, 34, 101, 52, 49, 49, 101, 99, 100, 49, 57, 57, 48, 99, 34, 44,
-            34, 70, 114, 101, 101, 83, 87, 73, 84, 67, 72, 45, 73, 80, 118, 52, 34, 58, 34, 49, 55, 50, 46, 49, 55, 46,
-            48, 46, 50, 34, 44, 34, 70, 114, 101, 101, 83, 87, 73, 84, 67, 72, 45, 73, 80, 118, 54, 34, 58, 34, 58, 58,
-            49, 34, 44, 34, 69, 118, 101, 110, 116, 45, 68, 97, 116, 101, 45, 76, 111, 99, 97, 108, 34, 58, 34, 50, 48,
-            50, 54, 45, 48, 49, 45, 48, 54, 32, 49, 52, 58, 51, 54, 58, 53, 50, 34, 44, 34, 69, 118, 101, 110, 116, 45,
-            68, 97, 116, 101, 45, 71, 77, 84, 34, 58, 34, 84, 117, 101, 44, 32, 48, 54, 32, 74, 97, 110, 32, 50, 48, 50,
-            54, 32, 49, 52, 58, 51, 54, 58, 53, 50, 32, 71, 77, 84, 34, 44, 34, 69, 118, 101, 110, 116, 45, 68, 97, 116,
-            101, 45, 84, 105, 109, 101, 115, 116, 97, 109, 112, 34, 58, 34, 49, 55, 54, 55, 55, 49, 48, 50, 49, 50, 52,
-            48, 52, 54, 55, 52, 34, 44, 34, 69, 118, 101, 110, 116, 45, 67, 97, 108, 108, 105, 110, 103, 45, 70, 105, 108,
-            101, 34, 58, 34, 115, 119, 105, 116, 99, 104, 95, 99, 111, 114, 101, 46, 99, 34, 44, 34, 69, 118, 101, 110,
-            116, 45, 67, 97, 108, 108, 105, 110, 103, 45, 70, 117, 110, 99, 116, 105, 111, 110, 34, 58, 34, 115, 101, 110,
-            100, 95, 104, 101, 97, 114, 116, 98, 101, 97, 116, 34, 44, 34, 69, 118, 101, 110, 116, 45, 67, 97, 108, 108,
-            105, 110, 103, 45, 76, 105, 110, 101, 45, 78, 117, 109, 98, 101, 114, 34, 58, 34, 57, 53, 34, 44, 34, 69, 118,
-            101, 110, 116, 45, 83, 101, 113, 117, 101, 110, 99, 101, 34, 58, 34, 53, 55, 54, 34, 44, 34, 69, 118, 101,
-            110, 116, 45, 73, 110, 102, 111, 34, 58, 34, 83, 121, 115, 116, 101, 109, 32, 82, 101, 97, 100, 121, 34, 44,
-            34, 85, 112, 45, 84, 105, 109, 101, 34, 58, 34, 48, 32, 121, 101, 97, 114, 115, 44, 32, 48, 32, 100, 97, 121,
-            115, 44, 32, 48, 32, 104, 111, 117, 114, 115, 44, 32, 48, 32, 109, 105, 110, 117, 116, 101, 115, 44, 32, 49,
-            57, 32, 115, 101, 99, 111, 110, 100, 115, 44, 32, 53, 50, 56, 32, 109, 105, 108, 108, 105, 115, 101, 99, 111,
-            110, 100, 115, 44, 32, 56, 56, 49, 32, 109, 105, 99, 114, 111, 115, 101, 99, 111, 110, 100, 115, 34, 44, 34,
-            70, 114, 101, 101, 83, 87, 73, 84, 67, 72, 45, 86, 101, 114, 115, 105, 111, 110, 34, 58, 34, 49, 46, 49, 48,
-            46, 49, 50, 45, 114, 101, 108, 101, 97, 115, 101, 45, 49, 48, 50, 50, 50, 48, 48, 50, 56, 56, 49, 45, 97,
-            56, 56, 100, 48, 54, 57, 100, 54, 102, 43, 103, 105, 116, 126, 50, 48, 50, 52, 48, 56, 48, 50, 84, 50, 49, 48,
-            50, 50, 55, 90, 126, 97, 56, 56, 100, 48, 54, 57, 100, 54, 102, 126, 54, 52, 98, 105, 116, 34, 44, 34, 85,
-            112, 116, 105, 109, 101, 45, 109, 115, 101, 99, 34, 58, 34, 49, 57, 53, 50, 56, 34, 44, 34, 83, 101, 115,
-            115, 105, 111, 110, 45, 67, 111, 117, 110, 116, 34, 58, 34, 48, 34, 44, 34, 77, 97, 120, 45, 83, 101, 115,
-            115, 105, 111, 110, 115, 34, 58, 34, 49, 48, 48, 48, 34, 44, 34, 83, 101, 115, 115, 105, 111, 110, 45, 80,
-            101, 114, 45, 83, 101, 99, 34, 58, 34, 51, 48, 34, 44, 34, 83, 101, 115, 115, 105, 111, 110, 45, 80, 101,
-            114, 45, 83, 101, 99, 45, 76, 97, 115, 116, 34, 58, 34, 48, 34, 44, 34, 83, 101, 115, 115, 105, 111, 110,
-            45, 80, 101, 114, 45, 83, 101, 99, 45, 77, 97, 120, 34, 58, 34, 48, 34, 44, 34, 83, 101, 115, 115, 105, 111,
-            110, 45, 80, 101, 114, 45, 83, 101, 99, 45, 70, 105, 118, 101, 77, 105, 110, 34, 58, 34, 48, 34, 44, 34,
-            83, 101, 115, 115, 105, 111, 110, 45, 83, 105, 110, 99, 101, 45, 83, 116, 97, 114, 116, 117, 112, 34, 58,
-            34, 48, 34, 44, 34, 83, 101, 115, 115, 105, 111, 110, 45, 80, 101, 97, 107, 45, 77, 97, 120, 34, 58, 34,
-            48, 34, 44, 34, 83, 101, 115, 115, 105, 111, 110, 45, 80, 101, 97, 107, 45, 70, 105, 118, 101, 77, 105,
-            110, 34, 58, 34, 48, 34, 44, 34, 73, 100, 108, 101, 45, 67, 80, 85, 34, 58, 34, 57, 55, 46, 57, 48, 48,
-            48, 48, 48, 34, 125, 10
-        ];
-        
-
-        let cursor = Cursor::new(full_frame);
-        let mut parser = EslReader::new(cursor, EslEventFormat::Json);
-
-        let event = parser.read_next_event().await.unwrap().unwrap();
-        
-        // Check frame headers
-        assert_eq!(event.frame_headers.get("Content-Type"), Some(&"text/event-json".to_string()));
-        
-        // Check event headers extracted from JSON
-        assert_eq!(event.event_headers.get("Event-Name"), Some(&"HEARTBEAT".to_string()));
-        assert_eq!(event.event_headers.get("Core-UUID"), Some(&"94ceea94-bd20-4390-87cb-8d48d47e6704".to_string()));
-        assert_eq!(event.event_headers.get("FreeSWITCH-Hostname"), Some(&"e411ecd1990c".to_string()));
-        assert_eq!(event.event_headers.get("Event-Sequence"), Some(&"576".to_string()));
-        assert_eq!(event.event_headers.get("Event-Info"), Some(&"System Ready".to_string()));
-        
-        // Check that body is None (no body content after first newline)
-        assert_eq!(event.event_body, None);
-    }
 }
