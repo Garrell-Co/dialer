@@ -1,0 +1,45 @@
+name: Dialer Rust Tests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'dialer/src/**'
+      - 'dialer/Cargo.toml'
+      - 'dialer/Cargo.lock'
+jobs:
+  cargo_test:
+    name: Cargo Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            dialer/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Run cargo test
+        working-directory: dialer
+        run: cargo test --all-features
+      
+      - name: Run cargo clippy
+        working-directory: dialer
+        run: cargo clippy --all-features -- -D warnings
+      
+      - name: Run cargo fmt check
+        working-directory: dialer
+        run: cargo fmt -- --check
+
