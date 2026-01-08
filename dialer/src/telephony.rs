@@ -38,7 +38,8 @@ pub struct CallLegEvent {
 
 #[derive(Debug)]
 pub enum TelephonyEvent {
-    CallOffered { call_id: String },
+    CallLegCreated { call_id: String },
+    CallOriginated { call_id: String },
     CallEnded { call_id: String },
     CallAnswered { call_id: String },
     TransportUp,
@@ -50,5 +51,6 @@ pub enum TelephonyEvent {
 pub trait TelephonyPort {
     async fn originate(&self, request: OriginateRequest) -> Result<OriginateResult>;
     async fn hangup(&self, request: HangupRequest) -> Result<()>;
+    async fn hangup_all(&self) -> Result<()>;
     fn take_event_rx(&mut self) -> mpsc::Receiver<TelephonyEvent>; 
 }

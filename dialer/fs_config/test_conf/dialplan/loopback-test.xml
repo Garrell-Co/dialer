@@ -1,8 +1,12 @@
 <include>
   <context name="loopback-test">
     <extension name="loopback-park">
-      <condition field="destination_number" expression="^test$">
+      <condition field="destination_number" expression="^park$">
         <action application="answer"/>
+
+        <action application="set" data="call_purpose=park_test"/>
+        <action application="set" data="hangup_after_bridge=false"/>
+
         <action application="park"/>
       </condition>
     </extension>

@@ -115,10 +115,15 @@ We will:
 - [Dialplan intro](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/)
 - [XML Dialplan](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/XML-Dialplan/)
 - [Loopback endpoint](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/Loopback-Endpoint_6587541/)
-- [Channel Variables](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/Channel-Variables_16352493/#Originate%5Frelated%5Fvariables)
+- [Channel variables](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/Channel-Variables_16352493/#Originate%5Frelated%5Fvariables)
+    - [Archived channel variables](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Dialplan/Variables-Archive/x__Variables_6587314/)
 
 ## Command documentation
 - [Commands](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_commands_1966741/)
+
+## Useful tips
+You can format the output of `fs_cli` commands with the following
+- [Formatting output for command results](https://developer.signalwire.com/freeswitch/FreeSWITCH-Explained/Modules/mod_commands_1966741/#2-format-of-returned-data)
 
 ## Implementation steps
 1. Dev container setup for repeatable and reusable dev environment

@@ -73,12 +73,13 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
         .unwrap_or_default();
     
     match event_name.parse::<FsEventKind>() {
-        Ok(FsEventKind::CHANNEL_CREATE) => Ok(TelephonyEvent::CallOffered { call_id }),
+        Ok(FsEventKind::CHANNEL_CREATE) => Ok(TelephonyEvent::CallLegCreated { call_id }),
         Ok(FsEventKind::CHANNEL_HANGUP) => Ok(TelephonyEvent::CallEnded { call_id }),
         Ok(FsEventKind::CHANNEL_ANSWER) => Ok(TelephonyEvent::CallAnswered { call_id }),
+        Ok(FsEventKind::CHANNEL_ORIGINATE) => Ok(TelephonyEvent::CallOriginated { call_id }),
         Ok(_) | Err(_) => {
             // Unknown event kind or parse error
-            Ok(TelephonyEvent::Unknown { message: format!("{:?}", ev.event_headers) } )
+            Ok(TelephonyEvent::Unknown { message: format!("{:?}", event_name) } )
         },
     }
 }
@@ -86,7 +87,7 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
     async fn originate(&self, req: OriginateRequest) -> Result<OriginateResult> {
-        let res = self.esl_handle.api(format!("originate loopback/{} {} park", req.extension, req.context)).await?;
+        let res = self.esl_handle.api(format!("originate loopback/{}/{} &park()", req.extension, req.context)).await?;
         let id = res.event_body
             .as_ref()
             .and_then(|body| std::str::from_utf8(body).ok())
@@ -97,6 +98,11 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
 
     async fn hangup(&self, req: HangupRequest) -> Result<()> {
         self.esl_handle.api(format!("api uuid_kill {} NORMAL_CLEARING", req.call_id)).await?;
+        Ok(())
+    }
+
+    async fn hangup_all(&self) -> Result<()> {
+        self.esl_handle.api("hupall".to_string()).await?;
         Ok(())
     }
 

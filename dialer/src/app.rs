@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use tracing;
 
 use crate::freeswitch::types::FsEventKind;
@@ -66,6 +68,8 @@ impl Worker for DialerWorker {
                 FsEventKind::CHANNEL_ANSWER,
                 FsEventKind::CHANNEL_HANGUP,
                 FsEventKind::CHANNEL_DESTROY,
+                FsEventKind::CHANNEL_BRIDGE,
+                FsEventKind::CHANNEL_UNBRIDGE,
             ]
         };
 
@@ -96,18 +100,16 @@ impl Worker for DialerWorker {
             }
         }
 
-        // Originate the call
         tracing::debug!("Originating call");
-        let originate_result = telephony.originate(OriginateRequest {
+        telephony.originate(OriginateRequest {
             from: "+2015557782".to_string(),
             to: "+2014007782".to_string(),
-            context: "default".to_string(),
-            extension: "1001".to_string(),
+            context: "loopback-test".to_string(),
+            extension: "park".to_string(),
             priority: 1,
         }).await?;
 
-        let originated_call_id = originate_result.channel_leg_id.clone();
-        tracing::info!("Originated a call with id {}", originated_call_id);
+        let mut calls = HashSet::<String>::new();
 
         // Wait for the call to be answered, then hang up
         loop {
@@ -116,34 +118,31 @@ impl Worker for DialerWorker {
                     tracing::error!("Channel closed, no more events");
                     anyhow::anyhow!("Channel closed, no more events")
                 })?;
-            
             match event {
                 TelephonyEvent::CallAnswered { call_id } => {
-                    if call_id == originated_call_id {
-                        tracing::info!("Call {} answered, hanging up", call_id);
-                        telephony.hangup(crate::telephony::HangupRequest {
-                            call_id: call_id.clone(),
-                        }).await?;
-                        tracing::info!("Hangup sent for call {}", call_id);
-                    } else {
-                        tracing::debug!("Call answered event for different call: {} (waiting for {})", call_id, originated_call_id);
-                    }
+                    tracing::info!("Call {} answered", call_id);
                 },
                 TelephonyEvent::CallEnded { call_id } => {
-                    if call_id == originated_call_id {
-                        tracing::info!("Call {} ended", call_id);
-                        break;
-                    }
+                    tracing::info!("Call {} ended", call_id);
+                    calls.remove(&call_id);
+                },
+                TelephonyEvent::CallOriginated { call_id } => {
+                    tracing::info!("Call {} originated", call_id);
+                    calls.insert(call_id);
+                },
+                TelephonyEvent::CallLegCreated { call_id } => {
+                    tracing::info!("Call {} leg created", call_id);
+                    calls.insert(call_id);
                 },
                 TelephonyEvent::TransportDown => {
                     tracing::info!("Telephony connection lost");
-                    break;
+                    calls.clear();
                 },
                 TelephonyEvent::Unknown { message } => {
-                    //tracing::info!("Unknown event received: {}", message);
+                    tracing::info!("Unknown event received: {}", message);
                 }
                 _ => {
-                    tracing::debug!("Received event: {:?}", event);
+                    tracing::info!("Received event: {:?}", event);
                 }
             }
         }
