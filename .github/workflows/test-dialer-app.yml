@@ -1,9 +1,7 @@
 name: Dialer Rust Tests
 on:
   pull_request:
-    branches: [ main ]
-  push:
-    branches: [ main ]
+    types: [opened, synchronize, reopened]
 jobs:
   cargo_test:
     name: Cargo Test
