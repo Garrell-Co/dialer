@@ -41,7 +41,7 @@ pub struct CallLegEvent {
 pub enum TelephonyEvent {
     CallLegCreated { call_id: String },
     CallOriginated { call_id: String },
-    CallEnded { call_id: String },
+    CallEnded { call_id: String, reason: Option<String> },
     CallAnswered { call_id: String },
     TransportUp,
     TransportDown,

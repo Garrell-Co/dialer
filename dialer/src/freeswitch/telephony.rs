@@ -74,12 +74,21 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
     
     match event_name.parse::<FsEventKind>() {
         Ok(FsEventKind::CHANNEL_CREATE) => Ok(TelephonyEvent::CallLegCreated { call_id }),
-        Ok(FsEventKind::CHANNEL_HANGUP) => Ok(TelephonyEvent::CallEnded { call_id }),
+        Ok(FsEventKind::CHANNEL_HANGUP) => {
+            let hangup_reason = ev.event_headers.get("Hangup-Cause")
+                .cloned();
+            Ok(TelephonyEvent::CallEnded { call_id, reason: hangup_reason })
+        },
         Ok(FsEventKind::CHANNEL_ANSWER) => Ok(TelephonyEvent::CallAnswered { call_id }),
         Ok(FsEventKind::CHANNEL_ORIGINATE) => Ok(TelephonyEvent::CallOriginated { call_id }),
         Ok(_) | Err(_) => {
             // Unknown event kind or parse error
-            Ok(TelephonyEvent::Unknown { message: format!("{:?}", event_name) } )
+            if let Some(b) = ev.event_body.as_ref() {
+                if let Ok(s) = std::str::from_utf8(b) {
+                    tracing::info!("Unknown or unhandled event: {}\nBody (UTF-8): '{}'", event_name, s);
+                }
+            }
+            Ok(TelephonyEvent::Unknown { message: format!("{:?}", event_name) })
         },
     }
 }
@@ -98,7 +107,7 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
     }
 
     async fn hangup(&self, req: HangupRequest) -> Result<()> {
-        self.esl_handle.api(format!("api uuid_kill {} NORMAL_CLEARING", req.call_id)).await?;
+        self.esl_handle.api(format!("uuid_kill {} NORMAL_CLEARING", req.call_id)).await?;
         Ok(())
     }
 

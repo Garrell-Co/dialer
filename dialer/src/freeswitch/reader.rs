@@ -300,7 +300,7 @@ pub fn parse_json_event(body_bytes: &[u8]) -> Result<Event> {
             headers
         }
         Err(e) => {
-            tracing::warn!("[EVENT] Failed to parse JSON: {}, using empty headers and raw body", e);
+            tracing::debug!("[EVENT] Failed to parse JSON: {}, using empty headers and raw body", e);
             // Return empty headers and use the original body_bytes as the body
             return Ok(Event {
                 headers: Headers::new(),

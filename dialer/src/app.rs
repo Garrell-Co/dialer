@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use tracing;
 
 use crate::freeswitch::types::FsEventKind;
-use crate::telephony::{OriginateRequest, TelephonyEvent, TelephonyPort};
+use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
 use crate::freeswitch::{EslEventFormat, EslSupervisorConfig, FreeswitchTelephonyAdapter};
 
 
@@ -102,7 +102,7 @@ impl Worker for DialerWorker {
 
         tracing::debug!("Originating call");
         let origination_uuid = "8d47cccc-1320-445e-b9ab-23db31c8b35f";
-        telephony.originate(OriginateRequest {
+        let actual_id = telephony.originate(OriginateRequest {
             id: origination_uuid.to_string(),
             from: "+2015557782".to_string(),
             to: "+2014007782".to_string(),
@@ -123,9 +123,15 @@ impl Worker for DialerWorker {
             match event {
                 TelephonyEvent::CallAnswered { call_id } => {
                     tracing::info!("Call {} answered", call_id);
+                    let req = HangupRequest { call_id: actual_id.channel_leg_id.clone() };
+                    telephony.hangup(req).await?;
                 },
-                TelephonyEvent::CallEnded { call_id } => {
-                    tracing::info!("Call {} ended", call_id);
+                TelephonyEvent::CallEnded { call_id, reason } => {
+                    if let Some(ref hangup_reason) = reason {
+                        tracing::info!("Call {} ended with reason: {}", call_id, hangup_reason);
+                    } else {
+                        tracing::info!("Call {} ended", call_id);
+                    }
                     calls.remove(&call_id);
                 },
                 TelephonyEvent::CallOriginated { call_id } => {
