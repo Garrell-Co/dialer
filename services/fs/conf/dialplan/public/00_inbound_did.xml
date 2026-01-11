@@ -1,0 +1,24 @@
+<include>
+  <extension name="inbound_did">
+    <condition field="destination_number" expression="^18005550100$">
+      <action application="set" data="did=18005550100"/>
+      <action application="set" data="agent_ext=1001"/>
+      <action application="set" data="target_contact=${sofia_contact(1001@internal)}"/>
+      <action application="execute_extension" data="check_reg XML public"/>
+    </condition>
+  </extension>
+
+  <extension name="check_reg">
+     <condition field="${target_contact}" expression="^error">
+         <action application="log" data="WARNING Agent 1001 NOT REGISTERED - FALLBACK"/>
+         <action application="answer"/>
+         <action application="sleep" data="1000"/>
+         <action application="playback" data="tone_stream://%(1000,0,480,620)"/> 
+         <action application="hangup"/>
+         <anti-action>
+             <action application="log" data="INFO Agent 1001 REGISTERED - BRIDGING"/>
+             <action application="bridge" data="user/1001"/>
+         </anti-action>
+     </condition>
+  </extension>
+</include>
