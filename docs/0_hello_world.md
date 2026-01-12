@@ -133,3 +133,5 @@ You can format the output of `fs_cli` commands with the following
 5. Connect from domain application
 6. Establish reconnect logic (tested by connecting, then shutting down freeswitch briefly, then restarting and expecting a reconnect)
 7. Get call lifecycle in place (Test with loopback)
+8. Get origination working
+9. Hang up call after origination success
