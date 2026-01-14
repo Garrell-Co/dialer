@@ -5,7 +5,7 @@ use super::esl::{EslEvent, EslHandle};
 use crate::freeswitch::types::FsEventKind;
 use crate::freeswitch::{EslSupervisor, EslSupervisorConfig};
 use crate::telephony::{
-    HangupRequest, OriginateRequest, OriginateResult, TelephonyEvent, TelephonyPort,
+    DestinationType, HangupRequest, OriginateRequest, OriginateResult, TelephonyEvent, TelephonyPort,
 };
 
 pub struct FreeswitchTelephonyAdapter {
@@ -78,7 +78,7 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
 
     match event_name.parse::<FsEventKind>() {
         Ok(FsEventKind::CHANNEL_CREATE) => Ok(TelephonyEvent::CallLegCreated { call_id }),
-        Ok(FsEventKind::CHANNEL_HANGUP) => {
+        Ok(FsEventKind::CHANNEL_HANGUP) | Ok(FsEventKind::CHANNEL_HANGUP_COMPLETE) => {
             let hangup_reason = ev.event_headers.get("Hangup-Cause").cloned();
             Ok(TelephonyEvent::CallEnded {
                 call_id,
@@ -108,19 +108,98 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
 #[async_trait::async_trait]
 impl TelephonyPort for FreeswitchTelephonyAdapter {
     async fn originate(&self, req: OriginateRequest) -> Result<OriginateResult> {
-        let res = self
-            .esl_handle
-            .api(format!(
-                "originate {{origination_uuid={}}}loopback/{}/{} &park()",
-                req.id, req.extension, req.context
-            ))
-            .await?;
-        let id = res
+        let mut channel_vars = format!("origination_uuid={}", req.id);
+        
+        channel_vars.push_str(&format!(",caller_id_number={}", req.from));
+        if let Some(ref name) = req.caller_id_name {
+            // Quote values that contain spaces or special characters
+            let quoted_name = if name.contains(' ') || name.contains(',') || name.contains('}') {
+                format!("'{}'", name.replace('\'', "\\'"))
+            } else {
+                name.clone()
+            };
+            channel_vars.push_str(&format!(",caller_id_name={}", quoted_name));
+        }
+        
+        let destination = match req.destination {
+            DestinationType::Loopback { extension, context } => {
+                format!("loopback/{}/{}", extension, context)
+            }
+            DestinationType::RegisteredUser { user, domain } => {
+                if let Some(domain) = domain {
+                    format!("user/{}@{}", user, domain)
+                } else {
+                    // Use default domain (could be made configurable)
+                    format!("user/{}@192.168.86.28", user)
+                }
+            }
+            DestinationType::External { destination } => {
+                format!("sofia/external/{}", destination)
+            }
+            DestinationType::Gateway { gateway_name, number } => {
+                format!("sofia/gateway/{}/{}", gateway_name, number)
+            }
+        };
+        
+        // Build application string (default to park if not specified)
+        let application = req.application.unwrap_or_else(|| "park()".to_string());
+        
+        // Build the full originate command
+        let command = format!(
+            "originate {{{}}}{} &{}",
+            channel_vars, destination, application
+        );
+        
+        tracing::debug!(
+            command = %command,
+            "Sending originate command to FreeSWITCH"
+        );
+        
+        let res = self.esl_handle.api(command.clone()).await?;
+        
+        // Check response body for errors
+        let response_body = res
             .event_body
             .as_ref()
             .and_then(|body| std::str::from_utf8(body).ok())
-            .map(|s| s.split_whitespace().last().unwrap_or("").to_string())
             .unwrap_or_default();
+        
+        tracing::debug!(
+            response_body = %response_body,
+            "Received originate response from FreeSWITCH"
+        );
+        
+        // Check if FreeSWITCH returned an error
+        if response_body.trim().starts_with("-ERR") {
+            let error_msg = response_body.trim().to_string();
+            tracing::error!(
+                command = %command,
+                error = %error_msg,
+                "FreeSWITCH returned error for originate command"
+            );
+            return Err(anyhow::anyhow!("FreeSWITCH error: {}", error_msg));
+        }
+        
+        // Extract channel UUID from response
+        // Success response format: "+OK <uuid>" or just "<uuid>"
+        let id = response_body
+            .split_whitespace()
+            .last()
+            .unwrap_or("")
+            .to_string();
+        
+        if id.is_empty() {
+            tracing::warn!(
+                response_body = %response_body,
+                "Could not extract channel UUID from originate response"
+            );
+        } else {
+            tracing::debug!(
+                channel_uuid = %id,
+                "Successfully originated call"
+            );
+        }
+        
         Ok(OriginateResult { channel_leg_id: id })
     }
 

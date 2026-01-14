@@ -64,10 +64,12 @@ impl<R: AsyncReadExt + Unpin> EslReader<R> {
             event_body: ev.body,
         };
 
-        tracing::debug!("[RAW FRAME] Final ESL event constructed - Frame headers: {:?}, Event headers: {:?}, Event body length: {:?}", 
+        tracing::debug!(
+            "[RAW FRAME] Final ESL event constructed - Frame headers: {:?}, Event headers: {:?}, Event body length: {:?}, Event body (utf8): {:?}",
             event.frame_headers,
             event.event_headers,
-            event.event_body.as_ref().map(|b| b.len())
+            event.event_body.as_ref().map(|b| b.len()),
+            event.event_body.as_ref().and_then(|b| std::str::from_utf8(b).ok())
         );
 
         Ok(Some(event))

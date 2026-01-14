@@ -217,7 +217,7 @@ async fn establish_connection(
         return Err(anyhow!("Authentication failed: {}", reply_text));
     }
 
-    tracing::debug!("Authenticated to FreeSWITCH: {}", reply_text);
+    tracing::info!("Authenticated to FreeSWITCH: {}", reply_text);
 
     // Subscribe to events
     let event_names: Vec<String> = config.event_list.iter().map(|e| e.to_string()).collect();
@@ -247,7 +247,7 @@ async fn establish_connection(
         return Err(anyhow!("Event subscription failed: {}", event_reply_text));
     }
 
-    tracing::debug!("Subscribed to FreeSWITCH events: {}", event_reply_text);
+    tracing::info!("Subscribed to FreeSWITCH events: {}", event_reply_text);
 
     Ok((reader, writer))
 }

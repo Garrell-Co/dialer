@@ -322,7 +322,8 @@
 
     <!-- for sip over secure websocket support -->
     <!-- You need wss.pem in $${certs_dir} for wss or one will be created for you -->
-    <param name="wss-binding" value=":7443"/>
+    <!-- Disabled WSS to avoid certificate errors - uncomment if you need secure websockets -->
+    <!--<param name="wss-binding" value=":7443"/>-->
 
     <!--<param name="delete-subs-on-register" value="false"/>-->
 

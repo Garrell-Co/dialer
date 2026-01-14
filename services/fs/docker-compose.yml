@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   freeswitch:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        SIGNALWIRE_TOKEN: ${SIGNALWIRE_TOKEN:-}
+        PAT: ${PAT:-}
     network_mode: "host"
     cap_add:
       - SYS_NICE

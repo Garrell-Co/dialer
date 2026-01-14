@@ -4,7 +4,7 @@ use tracing;
 
 use crate::freeswitch::types::FsEventKind;
 use crate::freeswitch::{EslEventFormat, EslSupervisorConfig, FreeswitchTelephonyAdapter};
-use crate::telephony::{HangupRequest, OriginateRequest, TelephonyEvent, TelephonyPort};
+use crate::telephony::{OriginateRequest, TelephonyEvent, TelephonyPort, DestinationType};
 
 #[derive(Clone, Debug)]
 pub struct WorkerConfig {
@@ -67,6 +67,7 @@ impl Worker for DialerWorker {
                 FsEventKind::CHANNEL_DESTROY,
                 FsEventKind::CHANNEL_BRIDGE,
                 FsEventKind::CHANNEL_UNBRIDGE,
+                FsEventKind::CHANNEL_HANGUP_COMPLETE
             ],
         };
 
@@ -96,20 +97,23 @@ impl Worker for DialerWorker {
             }
         }
 
-        tracing::debug!("Originating call");
+        tracing::debug!("Originating call to registered user 1001");
         let origination_uuid = "8d47cccc-1320-445e-b9ab-23db31c8b35f";
         let actual_id = telephony
             .originate(OriginateRequest {
                 id: origination_uuid.to_string(),
-                from: "+2015557782".to_string(),
-                to: "+2014007782".to_string(),
-                context: "loopback-test".to_string(),
-                extension: "park".to_string(),
-                priority: 1,
+                from: "1000".to_string(),
+                caller_id_name: Some("Extension 1000".to_string()),
+                destination: DestinationType::RegisteredUser {
+                    user: "1001".to_string(),
+                    domain: Some("192.168.86.28".to_string()),
+                },
+                application: Some("playback(local_stream://moh)".to_string()),
             })
             .await?;
 
         let mut calls = HashSet::<String>::new();
+        let originated_call_id = actual_id.channel_leg_id.clone();
 
         // Wait for the call to be answered, then hang up
         loop {
@@ -120,10 +124,10 @@ impl Worker for DialerWorker {
             match event {
                 TelephonyEvent::CallAnswered { call_id } => {
                     tracing::info!("Call {} answered", call_id);
-                    let req = HangupRequest {
-                        call_id: actual_id.channel_leg_id.clone(),
-                    };
-                    telephony.hangup(req).await?;
+                   // let req = HangupRequest {
+                   //     call_id: actual_id.channel_leg_id.clone(),
+                   // };
+                    //telephony.hangup(req).await?;
                 }
                 TelephonyEvent::CallEnded { call_id, reason } => {
                     if let Some(ref hangup_reason) = reason {
@@ -132,6 +136,12 @@ impl Worker for DialerWorker {
                         tracing::info!("Call {} ended", call_id);
                     }
                     calls.remove(&call_id);
+                    
+                    // If this is the call we originated, break the loop
+                    if call_id == originated_call_id {
+                        tracing::info!("Originated call ended, exiting");
+                        break;
+                    }
                 }
                 TelephonyEvent::CallOriginated { call_id } => {
                     tracing::info!("Call {} originated", call_id);
@@ -153,6 +163,8 @@ impl Worker for DialerWorker {
                 }
             }
         }
+        
+        Ok(())
     }
 }
 
