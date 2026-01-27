@@ -5,6 +5,7 @@
   },
   "remoteUser": "vscode",
   "forwardPorts": [3000, 54321, 54322, 54323, 54324, 54325, 54326],
+  "postCreateCommand": "bash .devcontainer/setup.sh",
   "mounts": [
     "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
   ],

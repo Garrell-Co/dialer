@@ -45,3 +45,6 @@ next-env.d.ts
 .turbo
 
 .env.local
+
+# FreeSWITCH runtime data
+services/fs/data/

@@ -8,6 +8,10 @@ name = "dialer"
 path = "src/lib.rs"
 
 [[bin]]
+name = "hello_world"
+path = "src/bin/hello_world.rs"
+
+[[bin]]
 name = "dialer_worker"
 path = "src/bin/dialer_worker.rs"
 

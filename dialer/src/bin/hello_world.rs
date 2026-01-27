@@ -7,26 +7,26 @@ use tracing_subscriber::{fmt, EnvFilter};
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
-    let cfg = WorkerConfig::from_env_and_args("dialer_worker")?;
+    let cfg = WorkerConfig::from_env_and_args("loopback_test")?;
 
     init_tracing(&cfg)?;
 
     tracing::info!(
-        "Starting dialer worker '{}' at log_level={}",
+        "Starting loopback test worker '{}' at log_level={}",
         cfg.worker_name,
         cfg.log_level
     );
 
-    // Configure call to registered linphone extension
+    // Configure a simple loopback call for testing
     let originate_req = OriginateRequest {
-        id: "8d47cccc-1320-445e-b9ab-23db31c8b35f".to_string(),
-        from: "1000".to_string(),
-        caller_id_name: Some("Extension 1000".to_string()),
-        destination: DestinationType::RegisteredUser {
-            user: "1001".to_string(),
-            domain: Some("192.168.86.28".to_string()),
+        id: "loopback-test-uuid".to_string(),
+        from: "loopback_test".to_string(),
+        caller_id_name: Some("Loopback Test".to_string()),
+        destination: DestinationType::Loopback {
+            extension: "9196".to_string(),
+            context: "default".to_string(),
         },
-        application: Some("playback(local_stream://moh)".to_string()),
+        application: Some("echo()".to_string()),
     };
 
     app::run_worker(cfg, originate_req).await
@@ -47,3 +47,4 @@ fn init_tracing(cfg: &WorkerConfig) -> anyhow::Result<()> {
 
     Ok(())
 }
+

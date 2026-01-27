@@ -17,7 +17,8 @@ FS_LOG_DIR="/var/log/freeswitch"
 FS_DB_DIR="/var/lib/freeswitch/db"
 
 # Check if test_conf exists and create merged config
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Resolve symlinks to get the actual script location
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 TEST_CONF_DIR="$SCRIPT_DIR/../fs_config/test_conf"
 MERGED_CONF_DIR=""
 
