@@ -1,45 +1,101 @@
-# FreeSWITCH Vertical Slice 2
+# FreeSWITCH Docker Example
 
-This directory contains the FreeSWITCH stack for Vertical Slice 2 (Inbound Call + Softphone).
+This directory contains a Docker setup for FreeSWITCH for testing and development.
 
 ## Prerequisites
 
-- Docker
-- SignalWire Personal Access Token (PAT) for installing FreeSWITCH (or use a public image if available).
+- Docker and Docker Compose
+- FreeSWITCH Personal Access Token (PAT) from https://freeswitch.org/
 
 ## Setup
 
-1. **Build the Image**
+1. **Configure Environment**
+
+   Copy the example environment file and add your FreeSWITCH PAT:
 
    ```bash
-   cd services/fs
-   # Replace YOUR_TOKEN with your SignalWire PAT
-   docker build --build-arg SIGNALWIRE_TOKEN=YOUR_TOKEN -t my-freeswitch .
+   cd examples/docker-fs
+   cp .env.example .env
+   # Edit .env and add your PAT
    ```
 
-   *Note: If you do not have a token, you may need to adjust `docker-compose.yml` to use a public image like `signalwire/freeswitch` instead of `build: .`*
+   Your `.env` file should contain:
+   ```bash
+   PAT=your-freeswitch-personal-access-token-here
+   ```
 
-2. **Run the Stack**
+   **Note**: The `.env` file is gitignored to protect your credentials.
+
+2. **Build the Image**
+
+   Docker Compose will automatically read the `PAT` from your `.env` file:
+
+   ```bash
+   docker compose build --no-cache
+   ```
+
+   During the build, you should see output confirming FreeSWITCH installation:
+   ```
+   Installing FreeSWITCH with PAT (length: XX chars)...
+   FreeSWITCH binary found: /usr/bin/freeswitch
+   ```
+
+3. **Run the Stack**
 
    ```bash
    docker compose up -d
    ```
 
-   This runs FreeSWITCH with `network_mode: host`.
+   This runs FreeSWITCH with `network_mode: host` for direct network access:
    - SIP: 5060/5080 (UDP/TCP)
    - ESL: 8021 (TCP)
    - RTP: Range (usually 16384-32768)
 
-3. **Verify**
+4. **Verify**
 
    Check logs:
    ```bash
-   docker compose logs -f freeswitch
+   docker compose logs -f
    ```
 
    Check status:
    ```bash
    docker exec -it fs-freeswitch-1 fs_cli -x "status"
+   ```
+
+   If you see "freeswitch: not found" errors, verify that:
+   - Your PAT is correct in the `.env` file
+   - You ran `docker compose build --no-cache` after setting the PAT
+
+## Configuration
+
+The FreeSWITCH container uses the vanilla configuration from `/usr/share/freeswitch/conf/vanilla/` by default.
+
+**Directory Structure:**
+- `./conf/` - Mounted to `/etc/freeswitch` (currently not used, but available for custom config)
+- `./data/` - Mounted to `/var/log/freeswitch` for logs
+- `./tools/` - Helper scripts for testing
+
+**Using Custom Configuration:**
+
+If you want to use custom configuration from the `./conf/` directory:
+
+1. Copy the vanilla config as a starting point:
+   ```bash
+   docker run --rm -v $(pwd)/conf:/dest signalwire/freeswitch \
+     cp -r /usr/share/freeswitch/conf/vanilla/. /dest/
+   ```
+
+2. Update `docker-compose.yml` to use the custom config:
+   ```yaml
+   environment:
+     - FS_CONF_DIR=/etc/freeswitch
+   ```
+
+3. Rebuild and restart:
+   ```bash
+   docker compose build
+   docker compose up -d
    ```
 
 ## Softphone Setup (Linphone)
@@ -69,7 +125,7 @@ This shows all active registrations. Look for your username (e.g., `1001`).
 Use the provided Python script to test registration:
 
 ```bash
-cd services/fs/tools
+cd examples/docker-fs/tools
 python3 test_sip_register.py 1001 1234 127.0.0.1 5060
 ```
 
@@ -97,7 +153,7 @@ sipcmd -u 1001 -c 1234 -P sip -w 127.0.0.1 -x "c" -x "h"
 Run the comprehensive test script that tries multiple methods:
 
 ```bash
-cd services/fs/tools
+cd examples/docker-fs/tools
 ./test_sip_registration.sh 1001 1234 127.0.0.1 5060
 ```
 
@@ -110,7 +166,7 @@ After attempting registration, verify it worked:
 docker exec -it fs-freeswitch-1 fs_cli -x "sofia status profile internal reg"
 
 # Check logs for registration events
-docker compose logs freeswitch | grep -i register
+docker compose logs | grep -i register
 ```
 
 ## Simulate Inbound Call
@@ -126,19 +182,88 @@ docker exec -it fs-freeswitch-1 fs_cli -x "originate {origination_caller_id_numb
 
 ## Lifecycle Logging
 
-A Python script is provided to log call lifecycle events to `services/fs/data/call_lifecycle.jsonl`.
+A Python script is provided to log call lifecycle events to `examples/docker-fs/data/call_lifecycle.jsonl`.
 
 1. **Run the Logger** (on host):
 
    ```bash
-   cd services/fs/tools
+   cd examples/docker-fs/tools
    python3 esl_logger.py
    ```
 
 2. **Inspect Logs**:
 
    ```bash
-   tail -f services/fs/data/call_lifecycle.jsonl
+   tail -f examples/docker-fs/data/call_lifecycle.jsonl
    ```
 
    You should see JSON events for `CHANNEL_CREATE`, `CHANNEL_ANSWER`, `CHANNEL_HANGUP_COMPLETE` with UUID, DID, and Agent fields.
+
+## Troubleshooting
+
+### Container Fails to Start: "freeswitch: not found"
+
+This means FreeSWITCH wasn't installed during the build:
+
+1. Verify your `.env` file exists and contains a valid PAT:
+   ```bash
+   cat .env
+   ```
+
+2. Rebuild with no cache to ensure the PAT is used:
+   ```bash
+   docker compose down
+   docker compose build --no-cache
+   docker compose up -d
+   ```
+
+3. Check build logs for FreeSWITCH installation confirmation:
+   ```bash
+   docker compose build --no-cache 2>&1 | grep -i freeswitch
+   ```
+
+### Container Starts but FreeSWITCH Won't Load: "Cannot Open log directory or XML Root!"
+
+If you manually run `freeswitch` inside the container without arguments, it will fail. Use one of these approaches:
+
+1. **Let the entrypoint handle it** (recommended):
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Or provide the required arguments manually**:
+   ```bash
+   docker exec -it fs-freeswitch-1 \
+     freeswitch -nonat \
+     -conf /usr/share/freeswitch/conf/vanilla \
+     -log /var/log/freeswitch \
+     -db /var/lib/freeswitch/db
+   ```
+
+### Can't Connect to FreeSWITCH CLI
+
+Verify the container is running and FreeSWITCH is started:
+
+```bash
+docker compose ps
+docker compose logs | tail -20
+```
+
+Try connecting with verbose output:
+```bash
+docker exec -it fs-freeswitch-1 fs_cli -H 127.0.0.1 -P 8021 -p ClueCon
+```
+
+### SIP Registration Fails
+
+1. Check if FreeSWITCH is listening on port 5060:
+   ```bash
+   docker exec -it fs-freeswitch-1 fs_cli -x "sofia status"
+   ```
+
+2. Verify network_mode is set to "host" in docker-compose.yml
+
+3. Check FreeSWITCH logs for authentication errors:
+   ```bash
+   docker compose logs | grep -i "auth\|register"
+   ```
