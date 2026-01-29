@@ -2,6 +2,7 @@ use dialer::app;
 use dialer::app::WorkerConfig;
 use dialer::telephony::{OriginateRequest, DestinationType};
 use tracing_subscriber::{fmt, EnvFilter};
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -29,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Configure call to registered linphone extension
     let originate_req = OriginateRequest {
-        id: "8d47cccc-1320-445e-b9ab-23db31c8b35f".to_string(),
+        id: Uuid::new_v4().to_string(),  // Generate unique UUID for each call
         from: "1000".to_string(),
         caller_id_name: Some("Extension 1000".to_string()),
         destination: DestinationType::RegisteredUser {

@@ -5,14 +5,22 @@ services:
       dockerfile: Dockerfile
       args:
         PAT: ${PAT:-}
+    environment:
+      # Set OVERLAY to use a configuration overlay from conf-overlays/
+      # Example: OVERLAY=slice-2-inbound-softphone
+      # Leave empty to use vanilla configuration
+      - OVERLAY=${OVERLAY:-}
     network_mode: "host"
     cap_add:
       - SYS_NICE
       - NET_ADMIN
       - NET_RAW
     volumes:
-      - ./conf:/etc/freeswitch
+      # Mount overlays directory (read-only)
+      - ./conf-overlays:/overlays:ro
+      # Mount data directory for logs
       - ./data:/var/log/freeswitch
+      # Optional: Mount sounds if needed
       # - ./sounds:/usr/share/freeswitch/sounds
     restart: unless-stopped
     healthcheck:

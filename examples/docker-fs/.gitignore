@@ -1,2 +1,4 @@
 data/*
 .env
+# Ignore full vanilla config copies - use conf-overlays/ instead
+conf/

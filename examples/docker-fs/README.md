@@ -22,9 +22,12 @@ This directory contains a Docker setup for FreeSWITCH for testing and developmen
    Your `.env` file should contain:
    ```bash
    PAT=your-freeswitch-personal-access-token-here
+   OVERLAY=slice-2-inbound-softphone
    ```
 
    **Note**: The `.env` file is gitignored to protect your credentials.
+   
+   Set `OVERLAY` to the vertical slice you want to test (leave empty for vanilla config).
 
 2. **Build the Image**
 
@@ -69,34 +72,51 @@ This directory contains a Docker setup for FreeSWITCH for testing and developmen
 
 ## Configuration
 
-The FreeSWITCH container uses the vanilla configuration from `/usr/share/freeswitch/conf/vanilla/` by default.
+The FreeSWITCH container uses a **configuration overlay system** that allows you to specify only the files that differ from vanilla configuration.
+
+📖 **See [OVERLAY-USAGE.md](./OVERLAY-USAGE.md) for a complete guide** on working with overlays.
 
 **Directory Structure:**
-- `./conf/` - Mounted to `/etc/freeswitch` (currently not used, but available for custom config)
-- `./data/` - Mounted to `/var/log/freeswitch` for logs
+- `./conf-overlays/` - Configuration overlays for different vertical slices
+  - Each subdirectory contains only the files that differ from vanilla
+  - See `conf-overlays/README.md` for details on each slice
+- `./data/` - FreeSWITCH logs (mounted to `/var/log/freeswitch`)
 - `./tools/` - Helper scripts for testing
 
-**Using Custom Configuration:**
+**Using Configuration Overlays:**
 
-If you want to use custom configuration from the `./conf/` directory:
-
-1. Copy the vanilla config as a starting point:
+1. **List available overlays:**
    ```bash
-   docker run --rm -v $(pwd)/conf:/dest signalwire/freeswitch \
-     cp -r /usr/share/freeswitch/conf/vanilla/. /dest/
+   ls conf-overlays/
    ```
 
-2. Update `docker-compose.yml` to use the custom config:
-   ```yaml
-   environment:
-     - FS_CONF_DIR=/etc/freeswitch
-   ```
-
-3. Rebuild and restart:
+2. **Use a specific overlay:**
+   
+   Set the `OVERLAY` environment variable in your `.env` file:
    ```bash
-   docker compose build
-   docker compose up -d
+   OVERLAY=slice-2-inbound-softphone
    ```
+   
+   Or specify it when running:
+   ```bash
+   OVERLAY=slice-2-inbound-softphone docker compose up -d
+   ```
+
+3. **Use vanilla configuration (no overlay):**
+   
+   Leave `OVERLAY` empty or unset in your `.env` file.
+
+**How It Works:**
+
+1. The entrypoint script starts with vanilla FreeSWITCH config from `/usr/share/freeswitch/conf/vanilla/`
+2. If `OVERLAY` is set, it copies vanilla to a temp directory and overlays your slice-specific files
+3. FreeSWITCH runs with the merged configuration
+
+This approach means you only maintain the **delta** from vanilla, making it clear what each test scenario requires.
+
+**Creating New Overlays:**
+
+See `conf-overlays/README.md` for instructions on creating new vertical slice configurations.
 
 ## Softphone Setup (Linphone)
 
