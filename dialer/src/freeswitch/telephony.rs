@@ -87,6 +87,8 @@ fn convert_esl_event(ev: EslEvent) -> Result<TelephonyEvent> {
         }
         Ok(FsEventKind::CHANNEL_ANSWER) => Ok(TelephonyEvent::CallAnswered { call_id }),
         Ok(FsEventKind::CHANNEL_ORIGINATE) => Ok(TelephonyEvent::CallOriginated { call_id }),
+        Ok(FsEventKind::CHANNEL_HOLD) => Ok(TelephonyEvent::CallHeld { call_id }),
+        Ok(FsEventKind::CHANNEL_UNHOLD) => Ok(TelephonyEvent::CallResumed { call_id }),
         Ok(_) | Err(_) => {
             // Unknown event kind or parse error
             if let Some(b) = ev.event_body.as_ref() {
@@ -212,6 +214,61 @@ impl TelephonyPort for FreeswitchTelephonyAdapter {
 
     async fn hangup_all(&self) -> Result<()> {
         self.esl_handle.api("hupall".to_string()).await?;
+        Ok(())
+    }
+
+    async fn hold(&self, call_id: &str) -> Result<()> {
+        let command = format!("uuid_hold {}", call_id);
+        tracing::debug!(command = %command, "Sending hold command");
+        let res = self.esl_handle.api(command).await?;
+        let body = res.event_body.as_ref()
+            .and_then(|b| std::str::from_utf8(b).ok())
+            .unwrap_or_default();
+        if body.trim().starts_with("-ERR") {
+            return Err(anyhow::anyhow!("FreeSWITCH error: {}", body.trim()));
+        }
+        Ok(())
+    }
+
+    async fn resume(&self, call_id: &str) -> Result<()> {
+        let command = format!("uuid_hold off {}", call_id);
+        tracing::debug!(command = %command, "Sending resume command");
+        let res = self.esl_handle.api(command).await?;
+        let body = res.event_body.as_ref()
+            .and_then(|b| std::str::from_utf8(b).ok())
+            .unwrap_or_default();
+        if body.trim().starts_with("-ERR") {
+            return Err(anyhow::anyhow!("FreeSWITCH error: {}", body.trim()));
+        }
+        Ok(())
+    }
+
+    async fn transfer(&self, call_id: &str, destination: DestinationType) -> Result<()> {
+        let dest_str = match destination {
+            DestinationType::Loopback { extension, context } => {
+                format!("{} XML {}", extension, context)
+            }
+            DestinationType::RegisteredUser { user, domain } => {
+                if let Some(domain) = domain {
+                    format!("user/{}@{}", user, domain)
+                } else {
+                    format!("user/{}", user)
+                }
+            }
+            DestinationType::External { destination } => destination,
+            DestinationType::Gateway { gateway_name, number } => {
+                format!("sofia/gateway/{}/{}", gateway_name, number)
+            }
+        };
+        let command = format!("uuid_transfer {} {}", call_id, dest_str);
+        tracing::debug!(command = %command, "Sending transfer command");
+        let res = self.esl_handle.api(command).await?;
+        let body = res.event_body.as_ref()
+            .and_then(|b| std::str::from_utf8(b).ok())
+            .unwrap_or_default();
+        if body.trim().starts_with("-ERR") {
+            return Err(anyhow::anyhow!("FreeSWITCH error: {}", body.trim()));
+        }
         Ok(())
     }
 

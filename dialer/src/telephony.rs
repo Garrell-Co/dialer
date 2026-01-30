@@ -78,6 +78,12 @@ pub enum TelephonyEvent {
     CallAnswered {
         call_id: String,
     },
+    CallHeld {
+        call_id: String,
+    },
+    CallResumed {
+        call_id: String,
+    },
     TransportUp,
     TransportDown,
     Unknown {
@@ -91,5 +97,8 @@ pub trait TelephonyPort {
     async fn originate(&self, request: OriginateRequest) -> Result<OriginateResult>;
     async fn hangup(&self, request: HangupRequest) -> Result<()>;
     async fn hangup_all(&self) -> Result<()>;
+    async fn hold(&self, call_id: &str) -> Result<()>;
+    async fn resume(&self, call_id: &str) -> Result<()>;
+    async fn transfer(&self, call_id: &str, destination: DestinationType) -> Result<()>;
     fn take_event_rx(&mut self) -> mpsc::Receiver<TelephonyEvent>;
 }
