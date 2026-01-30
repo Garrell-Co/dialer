@@ -5,4 +5,4 @@ pub mod policy;
 pub mod store;
 pub mod telephony;
 
-mod freeswitch;
+pub mod freeswitch;

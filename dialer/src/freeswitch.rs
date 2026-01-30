@@ -5,5 +5,5 @@ mod telephony;
 pub mod types;
 
 // Re-export commonly used types for cleaner imports
-pub(crate) use esl::{EslEventFormat, EslSupervisor, EslSupervisorConfig};
-pub(crate) use telephony::FreeswitchTelephonyAdapter;
+pub use esl::{EslEventFormat, EslSupervisor, EslSupervisorConfig};
+pub use telephony::FreeswitchTelephonyAdapter;

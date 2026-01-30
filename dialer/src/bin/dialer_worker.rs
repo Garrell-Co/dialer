@@ -1,15 +1,22 @@
-use dialer::app;
+use std::sync::Arc;
+
+use dialer::api::{self, AppState};
 use dialer::app::WorkerConfig;
-use dialer::telephony::{OriginateRequest, DestinationType};
+use dialer::controller;
+use dialer::freeswitch::types::FsEventKind;
+use dialer::freeswitch::{EslEventFormat, EslSupervisorConfig, FreeswitchTelephonyAdapter};
+use dialer::policy::manual_phone::ManualPhonePolicy;
+use dialer::store::memory::MemoryCallStore;
+use dialer::telephony::TelephonyPort;
+
+use tokio::sync::{broadcast, mpsc};
 use tracing_subscriber::{fmt, EnvFilter};
-use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
 
     let cfg = WorkerConfig::from_env_and_args("dialer_worker")?;
-
     init_tracing(&cfg)?;
 
     tracing::info!(
@@ -18,42 +25,85 @@ async fn main() -> anyhow::Result<()> {
         cfg.log_level
     );
 
-    // Get local IP address dynamically
-    let local_ip = local_ip_address::local_ip()
-        .map(|ip| ip.to_string())
-        .unwrap_or_else(|e| {
-            tracing::warn!("Failed to get local IP: {}, using localhost", e);
-            "127.0.0.1".to_string()
-        });
-    
-    tracing::info!("Using local IP: {}", local_ip);
-
-    // Configure call to registered linphone extension
-    let originate_req = OriginateRequest {
-        id: Uuid::new_v4().to_string(),  // Generate unique UUID for each call
-        from: "1000".to_string(),
-        caller_id_name: Some("Extension 1000".to_string()),
-        destination: DestinationType::RegisteredUser {
-            user: "1001".to_string(),
-            domain: Some(local_ip),
-        },
-        application: Some("playback(local_stream://moh)".to_string()),
+    // Build telephony adapter
+    let supervisor_config = EslSupervisorConfig {
+        host: cfg.freeswitch_host.clone(),
+        port: cfg.freeswitch_port,
+        password: cfg.freeswitch_password.clone(),
+        event_format: EslEventFormat::Json,
+        event_list: vec![
+            FsEventKind::CHANNEL_CREATE,
+            FsEventKind::CHANNEL_STATE,
+            FsEventKind::CHANNEL_DESTROY,
+            FsEventKind::CHANNEL_ANSWER,
+            FsEventKind::CHANNEL_HANGUP,
+            FsEventKind::CHANNEL_HANGUP_COMPLETE,
+            FsEventKind::CHANNEL_PROGRESS,
+            FsEventKind::CHANNEL_PROGRESS_MEDIA,
+            FsEventKind::CHANNEL_PARK,
+            FsEventKind::CHANNEL_UNPARK,
+            FsEventKind::CHANNEL_ORIGINATE,
+            FsEventKind::CHANNEL_OUTGOING,
+            FsEventKind::CHANNEL_BRIDGE,
+            FsEventKind::CHANNEL_UNBRIDGE,
+            FsEventKind::CHANNEL_HOLD,
+            FsEventKind::CHANNEL_UNHOLD,
+            FsEventKind::CHANNEL_EXECUTE,
+            FsEventKind::CHANNEL_EXECUTE_COMPLETE,
+            FsEventKind::CHANNEL_APPLICATION,
+            FsEventKind::CHANNEL_DATA,
+            FsEventKind::CHANNEL_UUID,
+            FsEventKind::CHANNEL_CALLSTATE,
+        ],
     };
 
-    app::run_worker(cfg, originate_req).await
+    let mut telephony = FreeswitchTelephonyAdapter::connect(supervisor_config).await?;
+    let event_rx = telephony.take_event_rx();
+
+    // Build components
+    let store: Arc<dyn dialer::store::CallStore> = Arc::new(MemoryCallStore::new());
+    let policy = ManualPhonePolicy;
+    let (command_tx, command_rx) = mpsc::channel(100);
+    let (state_tx, _) = broadcast::channel(100);
+
+    // Build API
+    let app_state = AppState {
+        command_tx,
+        state_tx: state_tx.clone(),
+        store: store.clone(),
+    };
+    let router = api::build_router(app_state);
+
+    let api_port = std::env::var("API_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(3001u16);
+
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", api_port)).await?;
+    tracing::info!("API server listening on 0.0.0.0:{}", api_port);
+
+    // Spawn API server
+    tokio::spawn(async move {
+        if let Err(e) = axum::serve(listener, router).await {
+            tracing::error!("API server error: {}", e);
+        }
+    });
+
+    // Run controller loop (blocks until shutdown)
+    controller::run_controller(&telephony, store.as_ref(), &policy, command_rx, event_rx, state_tx)
+        .await
 }
 
 fn init_tracing(cfg: &WorkerConfig) -> anyhow::Result<()> {
-    // Parse log level from config, defaulting to INFO if invalid
     let filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new(&cfg.log_level))
         .unwrap_or_else(|_| EnvFilter::new("info"));
 
     fmt()
         .with_env_filter(filter)
-        .with_target(true) // Show module paths (e.g., dialer::app, dialer::telephony)
-        .with_file(true) // Show file names
-        .with_line_number(true) // Show line numbers
+        .with_target(true)
+        .with_file(true)
+        .with_line_number(true)
         .init();
 
     Ok(())
