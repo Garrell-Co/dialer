@@ -9,7 +9,8 @@ use tokio::sync::mpsc;
 /// - Registered user: `DestinationType::RegisteredUser { user: "1001".into(), domain: Some("example.com".into()) }`
 /// - External/PSTN: `DestinationType::External { destination: "+1234567890@gateway.com".into() }`
 /// - Gateway/Trunk: `DestinationType::Gateway { gateway_name: "my_gateway".into(), number: "+1234567890".into() }`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type")]
 pub enum DestinationType {
     /// Loopback call for internal routing
     /// Used for internal call routing through dialplan
