@@ -33,12 +33,15 @@ pub async fn execute_command(
                 application: None,
             };
             store.insert(CallRecord {
-                call_id: id,
+                call_id: id.clone(),
                 destination,
                 from,
                 state: CallState::Ringing,
             });
-            telephony.originate(req).await?;
+            if let Err(e) = telephony.originate(req).await {
+                store.remove(&id);
+                return Err(e);
+            }
         }
         ControllerCommand::Hangup { call_id } => {
             telephony
